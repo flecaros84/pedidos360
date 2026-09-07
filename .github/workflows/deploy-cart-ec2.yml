@@ -36,6 +36,7 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_ISSUER_URI: ${{ secrets.AZURE_ISSUER_URI }}
           AZURE_AUDIENCE: ${{ secrets.AZURE_AUDIENCE }}
+          FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
         run: |
           cat > cart.env <<EOF
           APP_SECURITY_MODE=azure
@@ -46,7 +47,7 @@ jobs:
           AZURE_CLIENT_ID=$AZURE_CLIENT_ID
           AZURE_ISSUER_URI=$AZURE_ISSUER_URI
           AZURE_AUDIENCE=$AZURE_AUDIENCE
-          APP_CORS_ALLOWED_ORIGINS=http://localhost
+          APP_CORS_ALLOWED_ORIGINS=http://localhost,http://localhost:5173,$FRONTEND_ORIGIN
           EOF
 
       - name: Copiar configuración
