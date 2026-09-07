@@ -1,0 +1,75 @@
+name: Deploy Frontend EC2
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag de la imagen"
+        required: true
+        default: "latest"
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Preparar SSH
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          FRONTEND_HOST: ${{ secrets.FRONTEND_EC2_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/pedidos360.pem
+          chmod 600 ~/.ssh/pedidos360.pem
+          ssh-keyscan -H "$FRONTEND_HOST" >> ~/.ssh/known_hosts
+
+      - name: Crear configuración
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          cat > frontend.env <<EOF
+          AUTH_MODE=azure
+          AZURE_TENANT_ID=$AZURE_TENANT_ID
+          AZURE_CLIENT_ID=$AZURE_CLIENT_ID
+          AZURE_API_SCOPE=api://$AZURE_CLIENT_ID/pedidos360.access
+          AZURE_REDIRECT_URI=http://localhost
+          AUTH_API_URL=http://localhost:8081
+          CART_API_URL=http://localhost:8082
+          EOF
+
+      - name: Copiar configuración
+        env:
+          FRONTEND_HOST: ${{ secrets.FRONTEND_EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          scp -i ~/.ssh/pedidos360.pem frontend.env "$EC2_USER@$FRONTEND_HOST:~/frontend.env"
+
+      - name: Desplegar Frontend
+        env:
+          FRONTEND_HOST: ${{ secrets.FRONTEND_EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+
+          printf '%s' "$GH_TOKEN" | ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$FRONTEND_HOST" \
+            "docker login ghcr.io -u '$OWNER' --password-stdin"
+
+          ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$FRONTEND_HOST" "
+            docker pull ghcr.io/$OWNER/pedidos360-frontend:$IMAGE_TAG
+
+            docker rm -f pedidos360-frontend 2>/dev/null || true
+
+            docker run -d \
+              --name pedidos360-frontend \
+              --restart unless-stopped \
+              --env-file ~/frontend.env \
+              -p 80:80 \
+              ghcr.io/$OWNER/pedidos360-frontend:$IMAGE_TAG
+          "
