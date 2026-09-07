@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pedidos360-postgres
+    environment:
+      POSTGRES_DB: pedidos360
+      POSTGRES_USER: pedidos360
+      POSTGRES_PASSWORD: pedidos360
+    ports:
+      - "5432:5432"
+    volumes:
+      - pedidos360-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pedidos360 -d pedidos360"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-service:
+    build:
+      context: ./auth-service
+    container_name: pedidos360-auth
+    environment:
+      APP_SECURITY_MODE: local
+      APP_CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost
+    ports:
+      - "8081:8081"
+
+  cart-service:
+    build:
+      context: ./cart-service
+    container_name: pedidos360-cart
+    environment:
+      APP_SECURITY_MODE: local
+      APP_CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: pedidos360
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: pedidos360-frontend
+    environment:
+      AUTH_MODE: local
+      AUTH_API_URL: http://localhost:8081
+      CART_API_URL: http://localhost:8082
+      AZURE_TENANT_ID: ""
+      AZURE_CLIENT_ID: ""
+      AZURE_API_SCOPE: ""
+      AZURE_REDIRECT_URI: ""
+    ports:
+      - "80:80"
+    depends_on:
+      - auth-service
+      - cart-service
+
+volumes:
+  pedidos360-postgres-data:

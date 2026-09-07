@@ -1,0 +1,105 @@
+name: Deploy EC2
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag de las imágenes (latest o SHA del commit)"
+        required: true
+        default: "latest"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validar secrets mínimos
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          test -n "$EC2_HOST" || (echo "Falta EC2_HOST" && exit 1)
+          test -n "$EC2_USER" || (echo "Falta EC2_USER" && exit 1)
+          test -n "$EC2_KEY" || (echo "Falta EC2_SSH_PRIVATE_KEY" && exit 1)
+
+      - name: Preparar SSH
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$EC2_SSH_PRIVATE_KEY" > ~/.ssh/pedidos360.pem
+          chmod 600 ~/.ssh/pedidos360.pem
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      - name: Generar archivo .env de producción
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          APP_SECURITY_MODE: azure
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_ISSUER_URI: ${{ secrets.AZURE_ISSUER_URI }}
+          AZURE_AUDIENCE: ${{ secrets.AZURE_AUDIENCE }}
+          AZURE_API_SCOPE: ${{ secrets.AZURE_API_SCOPE }}
+          AZURE_REDIRECT_URI: ${{ secrets.AZURE_REDIRECT_URI }}
+          AUTH_API_URL: ${{ secrets.AUTH_API_URL }}
+          CART_API_URL: ${{ secrets.CART_API_URL }}
+          APP_CORS_ALLOWED_ORIGINS: ${{ secrets.APP_CORS_ALLOWED_ORIGINS }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+        run: |
+          OWNER_LOWER="${GITHUB_REPOSITORY_OWNER,,}"
+          cat > deploy.env <<EOF
+          GHCR_OWNER=$OWNER_LOWER
+          IMAGE_TAG=$IMAGE_TAG
+          APP_SECURITY_MODE=$APP_SECURITY_MODE
+          AUTH_MODE=azure
+          AZURE_TENANT_ID=$AZURE_TENANT_ID
+          AZURE_CLIENT_ID=$AZURE_CLIENT_ID
+          AZURE_ISSUER_URI=$AZURE_ISSUER_URI
+          AZURE_AUDIENCE=$AZURE_AUDIENCE
+          AZURE_API_SCOPE=$AZURE_API_SCOPE
+          AZURE_REDIRECT_URI=$AZURE_REDIRECT_URI
+          AUTH_API_URL=$AUTH_API_URL
+          CART_API_URL=$CART_API_URL
+          APP_CORS_ALLOWED_ORIGINS=$APP_CORS_ALLOWED_ORIGINS
+          DATABASE_URL=$DATABASE_URL
+          DATABASE_USERNAME=$DATABASE_USERNAME
+          DATABASE_PASSWORD=$DATABASE_PASSWORD
+          EOF
+
+      - name: Copiar archivos a EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$EC2_HOST" "mkdir -p ~/pedidos360"
+          scp -i ~/.ssh/pedidos360.pem docker-compose.prod.yml "$EC2_USER@$EC2_HOST:~/pedidos360/docker-compose.prod.yml"
+          scp -i ~/.ssh/pedidos360.pem deploy.env "$EC2_USER@$EC2_HOST:~/pedidos360/.env"
+
+      - name: Login GHCR en EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          OWNER_LOWER="${GITHUB_REPOSITORY_OWNER,,}"
+          printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$EC2_HOST" \
+            "docker login ghcr.io -u '$OWNER_LOWER' --password-stdin"
+
+      - name: Desplegar contenedores
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$EC2_HOST" '
+            set -e
+            cd ~/pedidos360
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker image prune -f
+            docker compose -f docker-compose.prod.yml ps
+          '
