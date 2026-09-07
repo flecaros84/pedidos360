@@ -10,8 +10,8 @@ const localAuth = {
   isAuthenticated: true,
   userId: 'local-demo-user',
   userName: 'Usuario Local',
-  login: async () => {},
-  logout: async () => {},
+  login: async () => { },
+  logout: async () => { },
   getAccessToken: async () => null,
 }
 
@@ -30,7 +30,11 @@ function AzureApp() {
     userId: account?.homeAccountId || '',
     userName: account?.name || account?.username || 'Usuario',
     login: () => import('./auth/azure').then(({ loginRequest }) => instance.loginRedirect(loginRequest)),
-    logout: () => instance.logoutRedirect({ account }),
+    logout: () =>
+      instance.logoutRedirect({
+        account,
+        postLogoutRedirectUri: config.azureRedirectUri,
+      }),
     getAccessToken: async () => {
       if (!account) throw new Error('No existe una cuenta autenticada')
       const { apiRequest } = await import('./auth/azure')

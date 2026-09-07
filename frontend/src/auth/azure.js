@@ -18,6 +18,7 @@ export const msalConfig = {
 
 export const loginRequest = {
   scopes: [config.azureApiScope],
+  prompt: 'login',
 }
 
 export const apiRequest = {

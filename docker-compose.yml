@@ -21,8 +21,13 @@ services:
       context: ./auth-service
     container_name: pedidos360-auth
     environment:
-      APP_SECURITY_MODE: local
+      APP_SECURITY_MODE: azure
       APP_CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost
+
+      AZURE_TENANT_ID: e5372bf0-c5e3-4286-887c-79069f209c1f
+      AZURE_CLIENT_ID: a561d8ef-b187-4bf0-9555-8f66b445df2e
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/e5372bf0-c5e3-4286-887c-79069f209c1f/v2.0
+      AZURE_AUDIENCE: a561d8ef-b187-4bf0-9555-8f66b445df2e
     ports:
       - "8081:8081"
 
@@ -31,8 +36,14 @@ services:
       context: ./cart-service
     container_name: pedidos360-cart
     environment:
-      APP_SECURITY_MODE: local
+      APP_SECURITY_MODE: azure
       APP_CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost
+
+      AZURE_TENANT_ID: e5372bf0-c5e3-4286-887c-79069f209c1f
+      AZURE_CLIENT_ID: a561d8ef-b187-4bf0-9555-8f66b445df2e
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/e5372bf0-c5e3-4286-887c-79069f209c1f/v2.0
+      AZURE_AUDIENCE: a561d8ef-b187-4bf0-9555-8f66b445df2e
+
       DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
       DATABASE_USERNAME: pedidos360
       DATABASE_PASSWORD: pedidos360
@@ -40,20 +51,20 @@ services:
       - "8082:8082"
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_healthy  
 
   frontend:
     build:
       context: ./frontend
     container_name: pedidos360-frontend
     environment:
-      AUTH_MODE: local
+      AUTH_MODE: azure
       AUTH_API_URL: http://localhost:8081
       CART_API_URL: http://localhost:8082
-      AZURE_TENANT_ID: ""
-      AZURE_CLIENT_ID: ""
-      AZURE_API_SCOPE: ""
-      AZURE_REDIRECT_URI: ""
+      AZURE_TENANT_ID: "e5372bf0-c5e3-4286-887c-79069f209c1f"
+      AZURE_CLIENT_ID: "a561d8ef-b187-4bf0-9555-8f66b445df2e"
+      AZURE_API_SCOPE: "api://a561d8ef-b187-4bf0-9555-8f66b445df2e/pedidos360.access"
+      AZURE_REDIRECT_URI: "http://localhost"
     ports:
       - "80:80"
     depends_on:

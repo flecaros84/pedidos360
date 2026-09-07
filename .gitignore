@@ -22,3 +22,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Archivo con claves
+claves.txt
