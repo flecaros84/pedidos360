@@ -17,19 +17,42 @@ async function request(baseUrl, path, options = {}, auth) {
     headers,
   })
 
-  if (!response.ok) {
-    let detail = ''
+  // El body se lee UNA sola vez.
+  const text = response.status === 204 ? '' : await response.text()
+
+  let body = null
+
+  if (text) {
     try {
-      const body = await response.json()
-      detail = body.message || body.error || JSON.stringify(body)
+      body = JSON.parse(text)
     } catch {
-      detail = await response.text()
+      body = text
     }
-    throw new Error(`${response.status} ${response.statusText}${detail ? ` - ${detail}` : ''}`)
   }
 
-  if (response.status === 204) return null
-  return response.json()
+  if (!response.ok) {
+    let detail = ''
+
+    if (typeof body === 'string') {
+      detail = body
+    } else if (body) {
+      detail = body.message || body.error || JSON.stringify(body)
+    }
+
+    throw new Error(
+      `${response.status} ${response.statusText}${detail ? ` - ${detail}` : ''}`
+    )
+  }
+
+  if (response.status === 204 || !text) {
+    return null
+  }
+
+  if (typeof body === 'string') {
+    throw new Error(`Respuesta inesperada del servidor: ${body.substring(0, 120)}`)
+  }
+
+  return body
 }
 
 export const api = {
