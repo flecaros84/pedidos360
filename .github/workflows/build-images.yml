@@ -21,10 +21,11 @@ jobs:
             image: pedidos360-auth
           - component: cart-service
             image: pedidos360-cart
+          - component: products-service
+            image: pedidos360-products
 
     steps:
       - uses: actions/checkout@v4
-
       - name: Preparar owner en minúsculas
         id: owner
         shell: bash
@@ -37,7 +38,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: docker/build-push-action@v6
         with:
           context: ./${{ matrix.component }}
