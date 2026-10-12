@@ -6,3 +6,11 @@ services:
     restart: unless-stopped
     ports:
       - "8083:8083"
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: pedidos360
+      CATALOG_SEED_DEMO: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy

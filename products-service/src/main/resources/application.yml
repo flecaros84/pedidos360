@@ -4,6 +4,21 @@ server:
 spring:
   application:
     name: products-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/pedidos360}
+    username: ${DATABASE_USERNAME:pedidos360}
+    password: ${DATABASE_PASSWORD:pedidos360}
+  sql:
+    init:
+      mode: always
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${DATABASE_DDL_AUTO:update}
+
+app:
+  catalog:
+    seed-demo: ${CATALOG_SEED_DEMO:false}
 
 management:
   endpoints:
