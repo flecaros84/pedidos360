@@ -19,6 +19,13 @@ spring:
 app:
   catalog:
     seed-demo: ${CATALOG_SEED_DEMO:false}
+  security:
+    mode: ${APP_SECURITY_MODE:local}
+    azure:
+      issuer-uri: ${AZURE_ISSUER_URI:https://login.microsoftonline.com/placeholder/v2.0}
+      audience: ${AZURE_AUDIENCE:placeholder}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost,http://localhost:5173}
 
 management:
   endpoints:

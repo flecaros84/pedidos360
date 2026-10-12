@@ -1,14 +1,10 @@
 package cl.duoc.pedidos360.cart.api;
 
 import java.util.List;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-
-import cl.duoc.pedidos360.cart.domain.CartItem;
-import cl.duoc.pedidos360.cart.domain.CartItemRepository;
 import cl.duoc.pedidos360.cart.security.CurrentUserService;
-
+import cl.duoc.pedidos360.cart.service.CartService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,46 +15,33 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/cart")
 public class CartController {
-
-    private final CartItemRepository repository;
+    private final CartService service;
     private final CurrentUserService currentUserService;
 
-    public CartController(CartItemRepository repository, CurrentUserService currentUserService) {
-        this.repository = repository;
+    public CartController(CartService service, CurrentUserService currentUserService) {
+        this.service = service;
         this.currentUserService = currentUserService;
     }
 
     @GetMapping
-    public List<CartItemResponse> list(Authentication authentication, HttpServletRequest request) {
-        String userId = currentUserService.userId(authentication, request);
-        return repository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-                .map(CartItemResponse::from)
-                .toList();
+    public List<CartItemResponse> list(Authentication auth, HttpServletRequest request) {
+        return service.list(currentUserService.userId(auth, request));
     }
 
     @PostMapping("/items")
     @ResponseStatus(HttpStatus.CREATED)
     public CartItemResponse add(@Valid @RequestBody AddCartItemRequest body,
-                                Authentication authentication,
-                                HttpServletRequest request) {
-        String userId = currentUserService.userId(authentication, request);
-        CartItem item = new CartItem(userId, body.productCode(), body.productName(), body.quantity());
-        return CartItemResponse.from(repository.save(item));
+                                Authentication auth, HttpServletRequest request) {
+        return service.add(currentUserService.userId(auth, request), body);
     }
 
     @DeleteMapping("/items/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id,
-                       Authentication authentication,
-                       HttpServletRequest request) {
-        String userId = currentUserService.userId(authentication, request);
-        CartItem item = repository.findByIdAndUserId(id, userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item no encontrado"));
-        repository.delete(item);
+    public void delete(@PathVariable Long id, Authentication auth, HttpServletRequest request) {
+        service.delete(currentUserService.userId(auth, request), id);
     }
 }

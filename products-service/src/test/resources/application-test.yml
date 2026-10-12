@@ -7,7 +7,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
-
 app:
+  security:
+    mode: local
   catalog:
     seed-demo: true
