@@ -1,0 +1,8 @@
+services:
+  products-service:
+    build:
+      context: ./products-service
+    container_name: pedidos360-products
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
