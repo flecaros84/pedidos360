@@ -1,7 +1,8 @@
 package cl.duoc.pedidos360.cart;
 
 import cl.duoc.pedidos360.cart.client.ProductsClient;
-import org.springframework.boot.test.mock.mockito.MockBean;
+// Agregar
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.math.BigDecimal;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -26,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class CartAggregationTests {
     @Autowired MockMvc mvc;
-    @MockBean ProductsClient products;
+    @MockitoBean ProductsClient products;
     @org.junit.jupiter.api.BeforeEach
     void setup() {
         when(products.offers(anyList(), nullable(String.class))).thenAnswer(call -> {
