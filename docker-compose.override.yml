@@ -1,0 +1,26 @@
+services:
+  products-service:
+    build:
+      context: ./products-service
+    container_name: pedidos360-products
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: pedidos360
+      DATABASE_DDL_AUTO: update
+      CATALOG_SEED_DEMO: "true"
+      APP_SECURITY_MODE: azure
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/e5372bf0-c5e3-4286-887c-79069f209c1f/v2.0
+      AZURE_AUDIENCE: a561d8ef-b187-4bf0-9555-8f66b445df2e
+      APP_CORS_ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+    depends_on:
+      postgres:
+        condition: service_healthy
+  frontend:
+    environment:
+      PRODUCTS_API_URL: http://localhost:8083
+    depends_on:
+      - products-service

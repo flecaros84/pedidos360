@@ -1,7 +1,6 @@
 package cl.duoc.pedidos360.cart.domain;
 
 import java.time.Instant;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -33,7 +32,7 @@ public class CartItem {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    protected CartItem() {}
+    protected CartItem() { }
 
     public CartItem(String userId, String productCode, String productName, Integer quantity) {
         this.userId = userId;
@@ -45,6 +44,11 @@ public class CartItem {
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
+    }
+
+    public void incrementQuantity(int amount) {
+        if (amount <= 0) throw new IllegalArgumentException("La cantidad debe ser positiva");
+        this.quantity = Math.addExact(this.quantity, amount);
     }
 
     public Long getId() { return id; }

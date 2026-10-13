@@ -1,0 +1,83 @@
+name: Deploy Products EC2
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Tag de la imagen'
+        required: true
+        default: 'latest'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preparar SSH
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          PRODUCTS_HOST: ${{ secrets.PRODUCTS_EC2_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/pedidos360.pem
+          chmod 600 ~/.ssh/pedidos360.pem
+          ssh-keyscan -H "$PRODUCTS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Crear configuración segura
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          AZURE_ISSUER_URI: ${{ secrets.AZURE_ISSUER_URI }}
+          AZURE_AUDIENCE: ${{ secrets.AZURE_AUDIENCE }}
+          FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
+        run: |
+          umask 077
+          cat > products.env <<EOF
+          APP_SECURITY_MODE=azure
+          DATABASE_URL=$DATABASE_URL
+          DATABASE_USERNAME=$DATABASE_USERNAME
+          DATABASE_PASSWORD=$DATABASE_PASSWORD
+          DATABASE_DDL_AUTO=update
+          CATALOG_SEED_DEMO=true
+          AZURE_ISSUER_URI=$AZURE_ISSUER_URI
+          AZURE_AUDIENCE=$AZURE_AUDIENCE
+          APP_CORS_ALLOWED_ORIGINS=$FRONTEND_ORIGIN
+          SERVER_PORT=8083
+          EOF
+
+      - name: Copiar configuración
+        env:
+          PRODUCTS_HOST: ${{ secrets.PRODUCTS_EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          scp -i ~/.ssh/pedidos360.pem products.env "$EC2_USER@$PRODUCTS_HOST:~/products.env"
+
+      - name: Desplegar Products Service
+        env:
+          PRODUCTS_HOST: ${{ secrets.PRODUCTS_EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          printf '%s' "$GH_TOKEN" | ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$PRODUCTS_HOST" \
+            "docker login ghcr.io -u '$OWNER' --password-stdin"
+          ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$PRODUCTS_HOST" "
+            docker pull ghcr.io/$OWNER/pedidos360-products:$IMAGE_TAG
+            docker rm -f pedidos360-products 2>/dev/null || true
+            chmod 600 ~/products.env
+            docker run -d \
+              --name pedidos360-products \
+              --restart unless-stopped \
+              --env-file ~/products.env \
+              -p 8083:8083 \
+              ghcr.io/$OWNER/pedidos360-products:$IMAGE_TAG
+          "
+
+      - name: Borrar archivo temporal
+        if: always()
+        run: rm -f products.env ~/.ssh/pedidos360.pem

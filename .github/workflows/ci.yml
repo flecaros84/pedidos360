@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [auth-service, cart-service]
+        service: [auth-service, cart-service, products-service]
     defaults:
       run:
         working-directory: ${{ matrix.service }}

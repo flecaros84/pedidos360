@@ -183,3 +183,10 @@ h2 { margin: 0; font-size: 1.85rem; line-height: 1.2; }
   .login-story > p:not(.eyebrow) { font-size: .93rem; }
   .login-card { padding: 1.7rem; }
 }
+
+/* Etapa 1: catálogo respaldado por Products Service */
+.product-price { color: #087b55; font-size: 1.12rem; font-weight: 850; margin: 0 0 1rem; }
+.product-price small { color: #779084; font-size: .73rem; font-weight: 600; }
+.cart-subtotal { color: #137c58; font-size: .78rem; font-weight: 700; margin-top: .3rem; }
+.cart-total { display: flex; justify-content: flex-end; gap: .6rem; padding: 1rem 0 .3rem; border-top: 1px solid #edf1ee; }
+.cart-total strong { color: #0a7b55; }

@@ -9,6 +9,7 @@ window.__ENV__ = {
   AZURE_API_SCOPE: "${AZURE_API_SCOPE:-}",
   AZURE_REDIRECT_URI: "${AZURE_REDIRECT_URI:-}",
   AUTH_API_URL: "${AUTH_API_URL:-http://localhost:8081}",
-  CART_API_URL: "${CART_API_URL:-http://localhost:8082}"
+  CART_API_URL: "${CART_API_URL:-http://localhost:8082}",
+  PRODUCTS_API_URL: "${PRODUCTS_API_URL:-http://localhost:8083}"
 };
 EOF

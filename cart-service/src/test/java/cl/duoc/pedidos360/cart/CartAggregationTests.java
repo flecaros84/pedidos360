@@ -1,0 +1,70 @@
+package cl.duoc.pedidos360.cart;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class CartAggregationTests {
+    @Autowired MockMvc mvc;
+    @Autowired ObjectMapper mapper;
+
+    private JsonNode add(String user, String code, int quantity) throws Exception {
+        String payload = mapper.writeValueAsString(new Request(code, "Producto prueba", quantity));
+        String result = mvc.perform(post("/api/cart/items")
+                .header("X-Demo-User", user)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return mapper.readTree(result);
+    }
+
+    record Request(String productCode, String productName, int quantity) { }
+
+    @Test
+    void addsQuantitiesWithoutCreatingDuplicateLines() throws Exception {
+        String user = "merge-" + UUID.randomUUID();
+        JsonNode first = add(user, "F001", 2);
+        JsonNode second = add(user, "F001", 3);
+        assertThat(second.path("id").asLong()).isEqualTo(first.path("id").asLong());
+        assertThat(second.path("quantity").asInt()).isEqualTo(5);
+
+        String json = mvc.perform(get("/api/cart").header("X-Demo-User", user))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        JsonNode list = mapper.readTree(json);
+        assertThat(list.size()).isEqualTo(1);
+        assertThat(list.get(0).path("quantity").asInt()).isEqualTo(5);
+    }
+
+    @Test
+    void quantitiesAreScopedToUserAndDeleteKeepsOthersIntact() throws Exception {
+        String user1 = "owner-" + UUID.randomUUID();
+        String user2 = "other-" + UUID.randomUUID();
+        JsonNode item1 = add(user1, "F002", 2);
+        JsonNode item2 = add(user2, "F002", 1);
+        assertThat(item2.path("id").asLong()).isNotEqualTo(item1.path("id").asLong());
+        mvc.perform(delete("/api/cart/items/" + item1.path("id").asLong())
+                        .header("X-Demo-User", user2))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete("/api/cart/items/" + item1.path("id").asLong())
+                        .header("X-Demo-User", user1))
+                .andExpect(status().isNoContent());
+        String json = mvc.perform(get("/api/cart").header("X-Demo-User", user2))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(mapper.readTree(json).get(0).path("quantity").asInt()).isEqualTo(1);
+    }
+}

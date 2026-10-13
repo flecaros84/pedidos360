@@ -15,7 +15,6 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Preparar SSH
         env:
@@ -26,13 +25,13 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/pedidos360.pem
           chmod 600 ~/.ssh/pedidos360.pem
           ssh-keyscan -H "$FRONTEND_HOST" >> ~/.ssh/known_hosts
-
       - name: Crear configuración
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           API_GATEWAY_BASE_URL: ${{ vars.API_GATEWAY_BASE_URL }}
         run: |
+          API_GATEWAY_BASE_URL="${API_GATEWAY_BASE_URL%/}"
           cat > frontend.env <<EOF
           AUTH_MODE=azure
           AZURE_TENANT_ID=$AZURE_TENANT_ID
@@ -41,15 +40,14 @@ jobs:
           AZURE_REDIRECT_URI=$API_GATEWAY_BASE_URL/
           AUTH_API_URL=$API_GATEWAY_BASE_URL
           CART_API_URL=$API_GATEWAY_BASE_URL
+          PRODUCTS_API_URL=$API_GATEWAY_BASE_URL
           EOF
-
       - name: Copiar configuración
         env:
           FRONTEND_HOST: ${{ secrets.FRONTEND_EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
           scp -i ~/.ssh/pedidos360.pem frontend.env "$EC2_USER@$FRONTEND_HOST:~/frontend.env"
-
       - name: Desplegar Frontend
         env:
           FRONTEND_HOST: ${{ secrets.FRONTEND_EC2_HOST }}
@@ -58,15 +56,11 @@ jobs:
           IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
           OWNER="${GITHUB_REPOSITORY_OWNER,,}"
-
           printf '%s' "$GH_TOKEN" | ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$FRONTEND_HOST" \
             "docker login ghcr.io -u '$OWNER' --password-stdin"
-
           ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$FRONTEND_HOST" "
             docker pull ghcr.io/$OWNER/pedidos360-frontend:$IMAGE_TAG
-
             docker rm -f pedidos360-frontend 2>/dev/null || true
-
             docker run -d \
               --name pedidos360-frontend \
               --restart unless-stopped \

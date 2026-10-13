@@ -1,0 +1,37 @@
+server:
+  port: ${SERVER_PORT:8083}
+
+spring:
+  application:
+    name: products-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/pedidos360}
+    username: ${DATABASE_USERNAME:pedidos360}
+    password: ${DATABASE_PASSWORD:pedidos360}
+  sql:
+    init:
+      mode: always
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${DATABASE_DDL_AUTO:update}
+
+app:
+  catalog:
+    seed-demo: ${CATALOG_SEED_DEMO:false}
+  security:
+    mode: ${APP_SECURITY_MODE:local}
+    azure:
+      issuer-uri: ${AZURE_ISSUER_URI:https://login.microsoftonline.com/placeholder/v2.0}
+      audience: ${AZURE_AUDIENCE:placeholder}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost,http://localhost:5173}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
