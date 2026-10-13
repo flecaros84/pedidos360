@@ -19,6 +19,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+  cart-service:
+    environment:
+      PRODUCTS_INTERNAL_URL: http://products-service:8083
+    depends_on:
+      - products-service
   frontend:
     environment:
       PRODUCTS_API_URL: http://localhost:8083

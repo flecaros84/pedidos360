@@ -1,5 +1,12 @@
 package cl.duoc.pedidos360.cart;
 
+import cl.duoc.pedidos360.cart.client.ProductsClient;
+// Agregar
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import java.math.BigDecimal;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -20,6 +27,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class CartAggregationTests {
     @Autowired MockMvc mvc;
+    @MockitoBean ProductsClient products;
+    @org.junit.jupiter.api.BeforeEach
+    void setup() {
+        when(products.offers(anyList(), nullable(String.class))).thenAnswer(call -> {
+            java.util.List<String> skus = call.getArgument(0);
+            return skus.stream().map(sku -> new ProductsClient.Availability(
+                "PM-CENTRO", "Puerto Montt Centro", sku, "Producto prueba", BigDecimal.valueOf(1000), 50)).toList();
+        });
+        when(products.shipping(org.mockito.ArgumentMatchers.anyString(), nullable(String.class)))
+            .thenReturn(java.util.List.of(new ProductsClient.ShippingRate(
+                "PM-CENTRO", "Puerto Montt Centro", "PM", BigDecimal.valueOf(1000), 1)));
+    }
     @Autowired ObjectMapper mapper;
 
     private JsonNode add(String user, String code, int quantity) throws Exception {
@@ -48,6 +67,18 @@ class CartAggregationTests {
         JsonNode list = mapper.readTree(json);
         assertThat(list.size()).isEqualTo(1);
         assertThat(list.get(0).path("quantity").asInt()).isEqualTo(5);
+    }
+
+    @Test
+    void quoteIncludesShippingAndDoesNotReserveStock() throws Exception {
+        String user = "quote-" + UUID.randomUUID();
+        add(user, "F001", 2);
+        String json = mvc.perform(get("/api/cart/quote").param("zoneCode", "PM")
+            .header("X-Demo-User", user)).andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString();
+        JsonNode result = mapper.readTree(json);
+        assertThat(result.path("cheapest").path("total").asInt()).isEqualTo(3000);
+        assertThat(result.path("fastest").path("estimatedDays").asInt()).isEqualTo(1);
     }
 
     @Test

@@ -37,6 +37,8 @@ public class CartDataMigration implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
+        // v0.4: branch_code deja de intervenir en las decisiones del carrito.
+        // Se conserva la columna heredada para no perder datos ni forzar una migración destructiva.
         List<CartItem> items = repository.findAll();
         Map<Key, CartItem> keepers = new LinkedHashMap<>();
         List<CartItem> duplicates = new ArrayList<>();
