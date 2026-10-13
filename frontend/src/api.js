@@ -17,7 +17,7 @@ async function request(baseUrl, path, options = {}, auth) {
     try { body = JSON.parse(text) } catch { body = text }
   }
   if (!response.ok) {
-    const detail = typeof body === 'string' ? body : (body?.message || body?.error || '')
+    const detail = typeof body === 'string' ? body : (body?.message || body?.detail || body?.error || '')
     throw new Error(`${response.status} ${response.statusText}${detail ? ` - ${detail}` : ''}`)
   }
   if (response.status === 204 || !text) return null
@@ -31,6 +31,12 @@ export const api = {
   addItem: (auth, item) => request(config.cartApiUrl, '/api/cart/items', {
     method: 'POST', body: JSON.stringify(item),
   }, auth),
+  quote: (auth, zoneCode) => request(config.cartApiUrl,
+    `/api/cart/quote?${new URLSearchParams({ zoneCode })}`, {}, auth),
+  clearCart: (auth) => request(config.cartApiUrl, '/api/cart', { method: 'DELETE' }, auth),
+  branches: (auth) => request(config.productsApiUrl, '/api/branches', {}, auth),
+  zones: (auth) => request(config.productsApiUrl, '/api/delivery-zones', {}, auth),
+  availability: (auth, id) => request(config.productsApiUrl, `/api/products/${id}/availability`, {}, auth),
   deleteItem: (auth, id) => request(config.cartApiUrl, `/api/cart/items/${id}`, {
     method: 'DELETE',
   }, auth),

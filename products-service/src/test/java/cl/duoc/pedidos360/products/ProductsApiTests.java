@@ -70,6 +70,26 @@ class ProductsApiTests {
     }
 
     @Test
+    void publicaCincoZonasYTarifasDeEnvio() throws Exception {
+        mockMvc.perform(get("/api/delivery-zones"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(5));
+        mockMvc.perform(get("/api/delivery-zones/PM/rates"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(5));
+    }
+    @Test
+    void entregaStockYOfertasSinElegirSucursal() throws Exception {
+        mockMvc.perform(get("/api/products").param("search", "PARACETAMOL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].totalStock").isNumber())
+                .andExpect(jsonPath("$[0].minPrice").isNumber());
+        mockMvc.perform(get("/api/products/offers").param("skus", "F001,F002"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(10));
+    }
+
+    @Test
     void parametroExcesivamenteLargoEsInvalido() throws Exception {
         mockMvc.perform(get("/api/products").param("search", "a".repeat(121)))
                 .andExpect(status().isBadRequest());

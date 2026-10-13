@@ -13,7 +13,7 @@
 
     <groupId>cl.duoc.pedidos360</groupId>
     <artifactId>products-service</artifactId>
-    <version>0.3.0-rc.2</version>
+    <version>0.4.0-rc.1</version>
     <name>products-service</name>
     <description>Catálogo farmacéutico de Farmacia Simple</description>
 

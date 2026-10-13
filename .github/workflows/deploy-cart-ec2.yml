@@ -15,7 +15,6 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Preparar SSH
         env:
@@ -26,7 +25,6 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/pedidos360.pem
           chmod 600 ~/.ssh/pedidos360.pem
           ssh-keyscan -H "$CART_HOST" >> ~/.ssh/known_hosts
-
       - name: Crear configuración
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -37,8 +35,16 @@ jobs:
           AZURE_ISSUER_URI: ${{ secrets.AZURE_ISSUER_URI }}
           AZURE_AUDIENCE: ${{ secrets.AZURE_AUDIENCE }}
           FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
+          PRODUCTS_INTERNAL_URL: ${{ vars.PRODUCTS_INTERNAL_URL }}
         run: |
-          cat > cart.env <<EOF
+          set -euo pipefail
+          test -n "$PRODUCTS_INTERNAL_URL" || { echo 'Falta vars.PRODUCTS_INTERNAL_URL (DNS del ALB interno, con http://)'; exit 1; }
+          [[ "$PRODUCTS_INTERNAL_URL" =~ ^http://internal-[A-Za-z0-9.-]+\.elb\.amazonaws\.com$ ]] || {
+            echo 'PRODUCTS_INTERNAL_URL debe ser el DNS privado de un ALB interno de AWS, con http:// y sin path'
+            exit 1
+          }
+          umask 077
+          cat > cart.env <<EOF_ENV
           APP_SECURITY_MODE=azure
           DATABASE_URL=$DATABASE_URL
           DATABASE_USERNAME=$DATABASE_USERNAME
@@ -47,16 +53,15 @@ jobs:
           AZURE_CLIENT_ID=$AZURE_CLIENT_ID
           AZURE_ISSUER_URI=$AZURE_ISSUER_URI
           AZURE_AUDIENCE=$AZURE_AUDIENCE
+          PRODUCTS_INTERNAL_URL=$PRODUCTS_INTERNAL_URL
           APP_CORS_ALLOWED_ORIGINS=http://localhost,http://localhost:5173,$FRONTEND_ORIGIN
-          EOF
-
+          EOF_ENV
       - name: Copiar configuración
         env:
           CART_HOST: ${{ secrets.CART_EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
           scp -i ~/.ssh/pedidos360.pem cart.env "$EC2_USER@$CART_HOST:~/cart.env"
-
       - name: Desplegar Cart Service
         env:
           CART_HOST: ${{ secrets.CART_EC2_HOST }}
@@ -65,15 +70,11 @@ jobs:
           IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
           OWNER="${GITHUB_REPOSITORY_OWNER,,}"
-
           printf '%s' "$GH_TOKEN" | ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$CART_HOST" \
             "docker login ghcr.io -u '$OWNER' --password-stdin"
-
           ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$CART_HOST" "
             docker pull ghcr.io/$OWNER/pedidos360-cart:$IMAGE_TAG
-
             docker rm -f pedidos360-cart 2>/dev/null || true
-
             docker run -d \
               --name pedidos360-cart \
               --restart unless-stopped \
@@ -81,3 +82,6 @@ jobs:
               -p 8082:8082 \
               ghcr.io/$OWNER/pedidos360-cart:$IMAGE_TAG
           "
+      - name: Borrar configuración temporal
+        if: always()
+        run: rm -f cart.env ~/.ssh/pedidos360.pem

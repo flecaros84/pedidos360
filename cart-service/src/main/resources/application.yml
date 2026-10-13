@@ -1,6 +1,5 @@
 server:
   port: ${SERVER_PORT:8082}
-
 spring:
   application:
     name: cart-service
@@ -12,14 +11,14 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
-
 management:
   endpoints:
     web:
       exposure:
         include: health,info
-
 app:
+  products:
+    base-url: ${PRODUCTS_INTERNAL_URL:http://localhost:8083}
   security:
     mode: ${APP_SECURITY_MODE:local}
     azure:

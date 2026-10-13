@@ -33,8 +33,14 @@ export default function App({ auth }) {
   const [profile, setProfile] = useState(null)
   const [cart, setCart] = useState([])
   const [products, setProducts] = useState([])
-  const [catalog, setCatalog] = useState([])
   const [categories, setCategories] = useState([])
+  const [zones, setZones] = useState([])
+  const [zoneCode, setZoneCode] = useState(() => window.localStorage.getItem('farmaciasimple.zone') || 'PM')
+  const [quoteMode, setQuoteMode] = useState('CHEAPEST')
+  const [quotes, setQuotes] = useState(null)
+  const [quoteLoading, setQuoteLoading] = useState(false)
+  const [quoteError, setQuoteError] = useState('')
+  const [comparison, setComparison] = useState({})
   const [busy, setBusy] = useState(false)
   const [catalogLoading, setCatalogLoading] = useState(false)
   const [cartError, setCartError] = useState('')
@@ -44,9 +50,7 @@ export default function App({ auth }) {
   const [category, setCategory] = useState('Todos')
   const groupedCart = useMemo(() => groupCart(cart), [cart])
   const cartCount = groupedCart.reduce((sum, item) => sum + item.quantity, 0)
-  const priceMap = new Map(catalog.filter(p => p.referencePrice != null).map(p => [p.sku, Number(p.referencePrice)]))
-  const estimatedTotal = groupedCart.reduce((sum, item) => sum + (priceMap.get(item.productCode) || 0) * item.quantity, 0)
-  const pricedItems = groupedCart.every(item => priceMap.has(item.productCode))
+  const selectedQuote = quoteMode === 'FASTEST' ? quotes?.fastest : quotes?.cheapest
 
   async function refreshCart() {
     if (!auth.isAuthenticated) return
@@ -67,11 +71,11 @@ export default function App({ auth }) {
   useEffect(() => {
     if (!auth.isAuthenticated) return
     let cancelled = false
-    Promise.all([api.products(auth), api.categories(auth)])
-      .then(([all, cats]) => {
+    Promise.all([api.categories(auth), api.zones(auth)])
+      .then(([cats, zonesList]) => {
         if (!cancelled) {
-          setCatalog(Array.isArray(all) ? all : [])
           setCategories(Array.isArray(cats) ? cats : [])
+          setZones(Array.isArray(zonesList) ? zonesList : [])
         }
       })
       .catch(e => { if (!cancelled) setCatalogError(e.message) })
@@ -103,11 +107,42 @@ export default function App({ auth }) {
   async function add(product) {
     setBusy(true); setCartError(''); setNotice('')
     try {
-      await api.addItem(auth, { productCode: product.sku, productName: product.name, quantity: 1 })
+      await api.addItem(auth, { productCode: product.sku, quantity: 1 })
       await refreshCart()
       setNotice(`${product.name} agregado al carrito.`)
     } catch (e) { setCartError(e.message) }
     finally { setBusy(false) }
+  }
+
+  useEffect(() => {
+    if (!auth.isAuthenticated || groupedCart.length === 0) { setQuotes(null); setQuoteError(''); return }
+    let cancelled = false
+    setQuoteLoading(true)
+    setQuotes(null)
+    api.quote(auth, zoneCode).then(result => {
+      if (!cancelled) { setQuotes(result); setQuoteError('') }
+    }).catch(error => {
+      if (!cancelled) { setQuotes(null); setQuoteError(error.message) }
+    }).finally(() => { if (!cancelled) setQuoteLoading(false) })
+    return () => { cancelled = true }
+    // Recalcular cuando cambia el contenido del carrito o la zona; auth no es estable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.isAuthenticated, cart, zoneCode])
+
+  function changeZone(nextZone) {
+    setZoneCode(nextZone)
+    window.localStorage.setItem('farmaciasimple.zone', nextZone)
+  }
+
+  async function compare(product) {
+    if (comparison[product.sku]) {
+      setComparison(prev => ({ ...prev, [product.sku]: null }))
+      return
+    }
+    try {
+      const offers = await api.availability(auth, product.id)
+      setComparison(prev => ({ ...prev, [product.sku]: offers }))
+    } catch (e) { setCatalogError(e.message) }
   }
 
   async function removeGroup(group) {
@@ -163,7 +198,7 @@ export default function App({ auth }) {
         <section className="hero"><div className="hero-content">
           <p className="eyebrow hero-kicker">FARMACIA SIMPLE · TU SALUD, MÁS CERCA</p>
           <h1>Cuidarte debería<br />ser <span>simple.</span></h1>
-          <p>Medicamentos y productos de bienestar en nuestro catálogo digital. Próximamente: precios y disponibilidad por sucursal.</p>
+          <p>Medicamentos y productos de bienestar en nuestro catálogo digital. Consulta precios y disponibilidad en cinco sucursales de demostración.</p>
           <a className="button-primary hero-cta" href="#catalogo">Ver catálogo →</a>
         </div><div className="hero-illustration" aria-hidden="true">
           <span className="hero-orbit orbit-one"/><span className="hero-orbit orbit-two"/>
@@ -171,7 +206,7 @@ export default function App({ auth }) {
         </div></section>
         <div className="service-strip" aria-label="Funcionalidades">
           <div><span className="service-icon">⌕</span><strong>Búsqueda en línea</strong><small>Catálogo en PostgreSQL</small></div>
-          <div><span className="service-icon">↔</span><strong>Precios por sucursal</strong><small>Próximamente</small></div>
+          <div><span className="service-icon">↔</span><strong>Precios por sucursal</strong><small>5 locales de demostración</small></div>
           <div><span className="service-icon">▤</span><strong>Seguimiento de pedidos</strong><small>Próximamente</small></div>
         </div>
         {cartError && <div className="error" role="alert">Error del carrito: {cartError}</div>}
@@ -179,8 +214,12 @@ export default function App({ auth }) {
         <section className="catalog-section" id="catalogo" aria-labelledby="catalog-title">
           <div className="section-heading"><div>
             <p className="eyebrow">EXPLORA NUESTROS PRODUCTOS</p><h2 id="catalog-title">Catálogo farmacéutico</h2>
-            <p className="muted">Productos almacenados en PostgreSQL. Los precios son referenciales; la disponibilidad por sucursal llegará en la siguiente etapa.</p>
+            <p className="muted">Productos almacenados en PostgreSQL. Precios y existencias demostrativos consultados desde PostgreSQL para cinco sucursales.</p>
           </div><span className="results-count">{catalogLoading ? 'Cargando…' : `${products.length} producto${products.length === 1 ? '' : 's'}`}</span></div>
+          <div className="branch-choice">
+            <strong>Precios y stock en cinco sucursales</strong>
+            <small>Agrega lo que necesites. El sistema seleccionará automáticamente el origen de cada producto al cotizar el envío.</small>
+          </div>
           <label className="search-field"><span aria-hidden="true">⌕</span><span className="sr-only">Buscar productos</span>
             <input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Nombre, principio activo, laboratorio o SKU…" />
           </label>
@@ -196,24 +235,55 @@ export default function App({ auth }) {
               <h3>{product.name}</h3>
               <p className="product-detail">{product.activeIngredient ? `Principio activo: ${product.activeIngredient}` : (product.laboratory || 'Producto de farmacia')}</p>
               <p className="product-presentation">{product.presentation}</p>
-              {product.referencePrice != null && <p className="product-price">{currency.format(product.referencePrice)} <small>referencial</small></p>}
-              <button type="button" className="button-primary product-add" disabled={busy || catalogLoading} onClick={() => add(product)}>Agregar al carrito +</button>
+              {product.minPrice != null && <p className="product-price">Desde {currency.format(product.minPrice)} <small>según sucursal, sin envío</small></p>}
+              <p className={`stock-status ${product.totalStock > 0 ? 'in-stock' : 'out-of-stock'}`}>
+                {product.totalStock > 0 ? `${product.totalStock} unidades entre las cinco sucursales` : 'Sin stock en sucursales'}
+              </p>
+              <button type="button" className="button-text" onClick={() => compare(product)}>Comparar sucursales {comparison[product.sku] ? '−' : '+'}</button>
+              {comparison[product.sku] && <div className="branch-comparison" aria-label={`Disponibilidad de ${product.name}`}>
+                {comparison[product.sku].map(offer => <div key={offer.branchCode}>
+                  <span>{offer.branchName}</span><strong>{currency.format(offer.price)}</strong><small>{offer.stock} un.</small>
+                </div>)}
+              </div>}
+              <button type="button" className="button-primary product-add" disabled={busy || catalogLoading || !(product.totalStock > 0)} onClick={() => add(product)}>Agregar al carrito +</button>
             </div>
           </article>)}</div>
         </section>
         <section className="card cart-section" id="carrito" aria-labelledby="cart-title">
-          <div className="section-title"><div><p className="eyebrow">TUS PRODUCTOS SELECCIONADOS</p><h2 id="cart-title">Mi carrito <span className="cart-heading-count">{cartCount}</span></h2></div>
+          <div className="section-title"><div><p className="eyebrow">COTIZACIÓN MULTISUCURSAL</p><h2 id="cart-title">Mi carrito <span className="cart-heading-count">{cartCount}</span></h2></div>
             <button type="button" className="button-outline" disabled={busy} onClick={refreshCart}>Actualizar</button></div>
           {groupedCart.length === 0 ? <div className="empty-cart"><span aria-hidden="true">🛒</span><h3>Tu carrito está vacío</h3><p>Explora el catálogo y agrega productos.</p><a href="#catalogo">Explorar productos →</a></div> :
             <div className="cart-list">{groupedCart.map(group => <div className="cart-row" key={group.productCode}>
               <div className="cart-item-info"><span className="cart-item-symbol" aria-hidden="true">+</span><div>
                 <strong>{group.productName}</strong><div className="muted">{group.productCode} · Cantidad: <strong>{group.quantity}</strong></div>
-                {priceMap.has(group.productCode) && <div className="cart-subtotal">Subtotal referencial: {currency.format(priceMap.get(group.productCode)*group.quantity)}</div>}
               </div></div>
               <button type="button" className="button-remove" disabled={busy} onClick={() => removeGroup(group)}>Eliminar</button>
             </div>)}</div>}
-          {groupedCart.length > 0 && pricedItems && <div className="cart-total">Total referencial: <strong>{currency.format(estimatedTotal)}</strong></div>}
-          <p className="cart-disclaimer">Valores referenciales de catálogo, no precios de compra. No hay pago ni descuento de inventario. Los productos repetidos se consolidan por SKU en PostgreSQL.</p>
+          {groupedCart.length > 0 && <div className="delivery-options">
+            <label htmlFor="zone-selector"><strong>Zona de entrega</strong></label>
+            <select id="zone-selector" value={zoneCode} onChange={e => changeZone(e.target.value)}>
+              {zones.length === 0 && <option value={zoneCode}>Cargando zonas…</option>}
+              {zones.map(zone => <option key={zone.code} value={zone.code}>{zone.name}</option>)}
+            </select>
+            <div className="quote-actions" role="group" aria-label="Prioridad de despacho">
+              <button type="button" className={`filter-button ${quoteMode === 'CHEAPEST' ? 'active' : ''}`}
+                onClick={() => setQuoteMode('CHEAPEST')}>Mejor precio</button>
+              <button type="button" className={`filter-button ${quoteMode === 'FASTEST' ? 'active' : ''}`}
+                onClick={() => setQuoteMode('FASTEST')}>Entrega más rápida</button>
+            </div>
+            {quoteLoading && <p className="muted">Calculando alternativas…</p>}
+            {quoteError && <p className="error" role="alert">No fue posible cotizar: {quoteError}</p>}
+            {selectedQuote && <div className="quote-result">
+              <div className="cart-total">Total estimado con envío: <strong>{currency.format(selectedQuote.total)}</strong></div>
+              <p>Productos: {currency.format(selectedQuote.medicinesTotal)} · Envíos: {currency.format(selectedQuote.shippingTotal)}</p>
+              <p><strong>Entrega completa estimada: {selectedQuote.estimatedDays} día(s)</strong> · {selectedQuote.shipments.length} despacho(s)</p>
+              {selectedQuote.shipments.map(shipment => <div className="shipment" key={shipment.branchCode}>
+                <div><strong>{shipment.branchName}</strong> · envío {currency.format(shipment.shippingCost)} · {shipment.deliveryDays} día(s)</div>
+                {shipment.items.map(line => <p key={line.sku}>{line.name} ({line.sku}) × {line.quantity} — {currency.format(line.subtotal)}</p>)}
+              </div>)}
+            </div>}
+          </div>}
+          <p className="cart-disclaimer">Cotización académica con precios, stock, tarifas y plazos simulados. Los despachos se cobran por sucursal. No hay reservas de inventario ni pagos reales; la disponibilidad puede cambiar antes del checkout.</p>
         </section>
         <section className="card account-section" id="cuenta"><div className="section-heading account-heading">
           <div><p className="eyebrow">IDENTIDAD Y SEGURIDAD</p><h2>Mi cuenta</h2></div><span className="security-tag">Sesión autenticada</span></div>

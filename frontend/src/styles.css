@@ -190,3 +190,26 @@ h2 { margin: 0; font-size: 1.85rem; line-height: 1.2; }
 .cart-subtotal { color: #137c58; font-size: .78rem; font-weight: 700; margin-top: .3rem; }
 .cart-total { display: flex; justify-content: flex-end; gap: .6rem; padding: 1rem 0 .3rem; border-top: 1px solid #edf1ee; }
 .cart-total strong { color: #0a7b55; }
+
+
+/* Etapas 2 y 3: selección de sucursal, disponibilidad y comparación */
+.branch-choice { display:flex; flex-direction:column; gap:7px; margin:12px 0 20px; }
+.branch-choice label { font-weight:700; color:#193f39; }
+.branch-choice select { width:100%; max-width:420px; min-height:43px; border:1px solid #cbdad3; border-radius:10px; padding:9px 12px; background:#fff; color:#133b32; }
+.branch-choice small { color:#63776d; }
+.stock-status { font-weight:650; font-size:.88rem; margin:8px 0; }
+.stock-status.in-stock { color:#1c7651; }
+.stock-status.out-of-stock { color:#a94a36; }
+.branch-comparison { border-top:1px solid #e3ebe7; margin:12px 0; padding-top:8px; display:flex; flex-direction:column; gap:8px; }
+.branch-comparison > div { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; align-items:center; font-size:.78rem; }
+.branch-comparison small { color:#63776d; }
+
+/* v0.4.0: cotizador de despachos multisucursal */
+.delivery-options { margin-top: 1.4rem; padding: 1.15rem; border: 1px solid #dce7e2; border-radius: 14px; background: #fbfdfc; }
+.delivery-options label { display: block; margin-bottom: .5rem; }
+.delivery-options select { width: 100%; max-width: 380px; padding: .6rem; border: 1px solid #a9c8ba; border-radius: 8px; font: inherit; background: white; }
+.quote-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+.quote-result { border-top: 1px solid #dce7e2; padding-top: .9rem; }
+.quote-result .cart-total { padding: .65rem 0; }
+.shipment { background: white; border: 1px solid #e5efea; border-radius: 10px; padding: .8rem 1rem; margin-top: .7rem; }
+.shipment p { font-size: .9rem; margin: .3rem 0 0; color: #51675b; }
