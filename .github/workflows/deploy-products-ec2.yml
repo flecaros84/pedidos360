@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Tag de la imagen'
+        description: 'Tag de la imagen en GHCR (latest o SHA completo)'
         required: true
         default: 'latest'
 
@@ -12,21 +12,64 @@ permissions:
   contents: read
   packages: read
 
+concurrency:
+  group: deploy-products-ec2
+  cancel-in-progress: false
+
 jobs:
   deploy:
+    name: Desplegar Products mediante SSM
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+
     steps:
-      - name: Preparar SSH
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Instalar complemento Session Manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb \
+            -o /tmp/session-manager-plugin.deb
+          sudo dpkg -i /tmp/session-manager-plugin.deb
+          session-manager-plugin --version
+          aws --version
+
+      - name: Preparar conexion privada por SSM
+        shell: bash
         env:
           SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          PRODUCTS_HOST: ${{ secrets.PRODUCTS_EC2_HOST }}
+          INSTANCE_ID: ${{ secrets.PRODUCTS_EC2_INSTANCE_ID }}
         run: |
+          set -euo pipefail
+          [[ "$INSTANCE_ID" =~ ^i-[0-9a-f]{8,17}$ ]] || { echo 'ID de instancia EC2 invalido'; exit 1; }
+          test -n "$SSH_KEY" || { echo 'Falta EC2_SSH_PRIVATE_KEY'; exit 1; }
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/pedidos360.pem
           chmod 600 ~/.ssh/pedidos360.pem
-          ssh-keyscan -H "$PRODUCTS_HOST" >> ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host products-ec2
+            HostName $INSTANCE_ID
+            User ec2-user
+            IdentityFile ~/.ssh/pedidos360.pem
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking accept-new
+            ProxyCommand sh -c 'aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=%p'
+          EOF
+          chmod 600 ~/.ssh/config
+          ssh -o ConnectTimeout=30 products-ec2 'sudo docker info >/dev/null && echo "SSM y Docker disponibles"'
 
-      - name: Crear configuración segura
+      - name: Crear configuracion de Products
+        shell: bash
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
@@ -35,49 +78,91 @@ jobs:
           AZURE_AUDIENCE: ${{ secrets.AZURE_AUDIENCE }}
           FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
         run: |
+          set -euo pipefail
           umask 077
-          cat > products.env <<EOF
-          APP_SECURITY_MODE=azure
-          DATABASE_URL=$DATABASE_URL
-          DATABASE_USERNAME=$DATABASE_USERNAME
-          DATABASE_PASSWORD=$DATABASE_PASSWORD
-          DATABASE_DDL_AUTO=update
-          CATALOG_SEED_DEMO=true
-          AZURE_ISSUER_URI=$AZURE_ISSUER_URI
-          AZURE_AUDIENCE=$AZURE_AUDIENCE
-          APP_CORS_ALLOWED_ORIGINS=$FRONTEND_ORIGIN
-          SERVER_PORT=8083
-          EOF
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
 
-      - name: Copiar configuración
-        env:
-          PRODUCTS_HOST: ${{ secrets.PRODUCTS_EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
+          config = {
+              'APP_SECURITY_MODE': 'azure',
+              'DATABASE_URL': os.environ['DATABASE_URL'],
+              'DATABASE_USERNAME': os.environ['DATABASE_USERNAME'],
+              'DATABASE_PASSWORD': os.environ['DATABASE_PASSWORD'],
+              'DATABASE_DDL_AUTO': 'update',
+              'CATALOG_SEED_DEMO': 'true',
+              'AZURE_ISSUER_URI': os.environ['AZURE_ISSUER_URI'],
+              'AZURE_AUDIENCE': os.environ['AZURE_AUDIENCE'],
+              'APP_CORS_ALLOWED_ORIGINS': os.environ['FRONTEND_ORIGIN'],
+              'SERVER_PORT': '8083',
+          }
+          for key, value in config.items():
+              if not value or '\n' in value or '\r' in value:
+                  raise SystemExit(f'Configuracion vacia o invalida: {key}')
+          Path('products.env').write_text(
+              ''.join(f'{key}={value}\n' for key, value in config.items()),
+              encoding='utf-8',
+          )
+          PY
+          chmod 600 products.env
+
+      - name: Copiar configuracion mediante tunel SSM
+        shell: bash
         run: |
-          scp -i ~/.ssh/pedidos360.pem products.env "$EC2_USER@$PRODUCTS_HOST:~/products.env"
+          set -euo pipefail
+          scp -o ConnectTimeout=30 products.env products-ec2:~/products.env
+          ssh products-ec2 'chmod 600 ~/products.env'
 
-      - name: Desplegar Products Service
+      - name: Desplegar solo Products
+        shell: bash
         env:
-          PRODUCTS_HOST: ${{ secrets.PRODUCTS_EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
+          set -euo pipefail
+          [[ "$IMAGE_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || {
+            echo 'Etiqueta Docker invalida'
+            exit 1
+          }
           OWNER="${GITHUB_REPOSITORY_OWNER,,}"
-          printf '%s' "$GH_TOKEN" | ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$PRODUCTS_HOST" \
-            "docker login ghcr.io -u '$OWNER' --password-stdin"
-          ssh -i ~/.ssh/pedidos360.pem "$EC2_USER@$PRODUCTS_HOST" "
-            docker pull ghcr.io/$OWNER/pedidos360-products:$IMAGE_TAG
-            docker rm -f pedidos360-products 2>/dev/null || true
-            chmod 600 ~/products.env
-            docker run -d \
-              --name pedidos360-products \
-              --restart unless-stopped \
-              --env-file ~/products.env \
-              -p 8083:8083 \
-              ghcr.io/$OWNER/pedidos360-products:$IMAGE_TAG
-          "
+          IMAGE="ghcr.io/$OWNER/pedidos360-products:$IMAGE_TAG"
 
-      - name: Borrar archivo temporal
+          # El token viaja por el tunel cifrado; no se almacena en el historial de SSM Run Command.
+          printf '%s' "$GH_TOKEN" | ssh products-ec2 \
+            "sudo docker login ghcr.io -u '$OWNER' --password-stdin"
+
+          ssh products-ec2 bash -s -- "$IMAGE" <<'REMOTE'
+          set -euo pipefail
+          IMAGE="$1"
+          sudo docker pull "$IMAGE"
+          sudo docker logout ghcr.io >/dev/null
+          sudo docker rm -f pedidos360-products 2>/dev/null || true
+          sudo docker run -d \
+            --name pedidos360-products \
+            --restart unless-stopped \
+            --env-file /home/ec2-user/products.env \
+            -p 8083:8083 \
+            "$IMAGE"
+
+          # El balanceador interno necesitara que /actuator/health devuelva HTTP 200 y UP.
+          for intento in $(seq 1 36); do
+            if curl -fsS --max-time 3 http://127.0.0.1:8083/actuator/health 2>/dev/null \
+              | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'; then
+              echo 'Products responde UP en /actuator/health'
+              exit 0
+            fi
+            if [ "$(sudo docker inspect -f '{{.State.Running}}' pedidos360-products)" != 'true' ]; then
+              break
+            fi
+            sleep 5
+          done
+          echo 'Products no supero la comprobacion de salud; ultimos logs:'
+          sudo docker logs --tail 80 pedidos360-products
+          exit 1
+          REMOTE
+
+      - name: Eliminar archivos temporales del runner
         if: always()
-        run: rm -f products.env ~/.ssh/pedidos360.pem
+        shell: bash
+        run: |
+          rm -f products.env ~/.ssh/pedidos360.pem ~/.ssh/config
