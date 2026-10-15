@@ -1,0 +1,49 @@
+server:
+  port: ${SERVER_PORT:8085}
+spring:
+  application:
+    name: notifications-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/pedidos360}
+    username: ${DATABASE_USERNAME:pedidos360}
+    password: ${DATABASE_PASSWORD:pedidos360}
+  sql:
+    init:
+      mode: always
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${DATABASE_DDL_AUTO:update}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 2000
+          multiplier: 2
+          max-attempts: 3
+          max-interval: 10000
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:false}
+      mail.smtp.connectiontimeout: 8000
+      mail.smtp.timeout: 8000
+      mail.smtp.writetimeout: 8000
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+app:
+  mail:
+    from: ${SMTP_FROM:demo@farmaciasimple.local}

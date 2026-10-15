@@ -1,0 +1,31 @@
+name: CI Orders Notifications
+on:
+  pull_request:
+    paths:
+      - 'orders-service/**'
+      - 'notifications-service/**'
+      - '.github/workflows/ci-messaging.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'orders-service/**'
+      - 'notifications-service/**'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [orders-service, notifications-service]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: '${{ matrix.service }}/pom.xml'
+      - name: Tests Maven
+        working-directory: '${{ matrix.service }}'
+        run: mvn -B test

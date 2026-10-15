@@ -27,5 +27,84 @@ services:
   frontend:
     environment:
       PRODUCTS_API_URL: http://localhost:8083
+      ORDERS_API_URL: http://localhost:8084
     depends_on:
       - products-service
+      - orders-service
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: pedidos360-rabbitmq
+    hostname: rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: farmacia
+      RABBITMQ_DEFAULT_PASS: farmacia-local
+    ports:
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: pedidos360-mailpit
+    ports:
+      - "127.0.0.1:8025:8025"
+  orders-service:
+    build: ./orders-service
+    container_name: pedidos360-orders
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      APP_SECURITY_MODE: azure
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/e5372bf0-c5e3-4286-887c-79069f209c1f/v2.0
+      AZURE_AUDIENCE: a561d8ef-b187-4bf0-9555-8f66b445df2e
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: pedidos360
+      DATABASE_DDL_AUTO: update
+      CART_INTERNAL_URL: http://cart-service:8082
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: farmacia
+      RABBITMQ_PASSWORD: farmacia-local
+      APP_CORS_ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      cart-service:
+        condition: service_started
+  notifications-service:
+    build: ./notifications-service
+    container_name: pedidos360-notifications
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: pedidos360
+      DATABASE_DDL_AUTO: update
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: farmacia
+      RABBITMQ_PASSWORD: farmacia-local
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: "587"
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_AUTH: "true"
+      SMTP_STARTTLS: "true"
+      SMTP_FROM: ${SMTP_USERNAME}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+volumes:
+  rabbitmq_data:

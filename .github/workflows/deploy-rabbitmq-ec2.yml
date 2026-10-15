@@ -1,0 +1,83 @@
+name: Deploy RabbitMQ EC2
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: deploy-rabbitmq-ec2
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: '${{ secrets.AWS_ACCESS_KEY_ID }}'
+          aws-secret-access-key: '${{ secrets.AWS_SECRET_ACCESS_KEY }}'
+          aws-session-token: '${{ secrets.AWS_SESSION_TOKEN }}'
+          aws-region: us-east-1
+      - name: Instalar Session Manager Plugin
+        run: |
+          set -euo pipefail
+          curl -fsSL https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb -o /tmp/session-manager-plugin.deb
+          sudo dpkg -i /tmp/session-manager-plugin.deb
+      - name: Preparar túnel SSH por SSM
+        env:
+          SSH_KEY: '${{ secrets.EC2_SSH_PRIVATE_KEY }}'
+          INSTANCE_ID: '${{ secrets.RABBITMQ_EC2_INSTANCE_ID }}'
+        run: |
+          set -euo pipefail
+          [[ "$INSTANCE_ID" =~ ^i-[0-9a-f]{8,17}$ ]] || exit 1
+          test -n "$SSH_KEY"
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/pedidos360.pem
+          chmod 600 ~/.ssh/pedidos360.pem
+          cat > ~/.ssh/config <<EOF
+          Host target-ec2
+            HostName $INSTANCE_ID
+            User ec2-user
+            IdentityFile ~/.ssh/pedidos360.pem
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking accept-new
+            ProxyCommand sh -c 'aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=%p'
+          EOF
+          chmod 600 ~/.ssh/config
+          ssh -o ConnectTimeout=30 target-ec2 'sudo docker info >/dev/null'
+      - name: Configurar credenciales RabbitMQ
+        env:
+          USERNAME: '${{ secrets.RABBITMQ_USERNAME }}'
+          PASSWORD: '${{ secrets.RABBITMQ_PASSWORD }}'
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$USERNAME" && test -n "$PASSWORD"
+          test "${#PASSWORD}" -ge 12
+          printf 'RABBITMQ_DEFAULT_USER=%s\nRABBITMQ_DEFAULT_PASS=%s\n' "$USERNAME" "$PASSWORD" > rabbitmq.env
+          chmod 600 rabbitmq.env
+          scp rabbitmq.env target-ec2:~/rabbitmq.env
+          ssh target-ec2 'chmod 600 ~/rabbitmq.env'
+      - name: Reiniciar broker privado conservando datos
+        run: |
+          set -euo pipefail
+          ssh target-ec2 bash <<'REMOTE'
+          set -euo pipefail
+          sudo docker pull rabbitmq:3.13-management-alpine
+          sudo docker volume create pedidos360-rabbitmq-data >/dev/null
+          sudo docker rm -f pedidos360-rabbitmq 2>/dev/null || true
+          sudo docker run -d --name pedidos360-rabbitmq --hostname rabbitmq \
+            --restart unless-stopped --env-file /home/ec2-user/rabbitmq.env \
+            -v pedidos360-rabbitmq-data:/var/lib/rabbitmq \
+            -p 5672:5672 -p 127.0.0.1:15672:15672 rabbitmq:3.13-management-alpine
+          for i in $(seq 1 24); do
+            if sudo docker exec pedidos360-rabbitmq rabbitmq-diagnostics -q ping; then exit 0; fi
+            sleep 5
+          done
+          sudo docker logs --tail 80 pedidos360-rabbitmq
+          exit 1
+          REMOTE
+      - name: Limpiar claves locales
+        if: always()
+        run: rm -f rabbitmq.env ~/.ssh/pedidos360.pem ~/.ssh/config

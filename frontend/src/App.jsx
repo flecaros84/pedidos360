@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
 import { config } from './config'
 import { version } from '../package.json'
@@ -46,11 +46,47 @@ export default function App({ auth }) {
   const [cartError, setCartError] = useState('')
   const [catalogError, setCatalogError] = useState('')
   const [notice, setNotice] = useState('')
+  const [orders, setOrders] = useState([])
+  const [ordersError, setOrdersError] = useState('')
+  const [recipientEmail, setRecipientEmail] = useState('')
+  const requestKeyRef = useRef(null)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('Todos')
   const groupedCart = useMemo(() => groupCart(cart), [cart])
   const cartCount = groupedCart.reduce((sum, item) => sum + item.quantity, 0)
   const selectedQuote = quoteMode === 'FASTEST' ? quotes?.fastest : quotes?.cheapest
+  const recipientEmailValid = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/.test(recipientEmail.trim())
+
+  async function refreshOrders() {
+    if (!auth.isAuthenticated) return
+    try {
+      const result = await api.orders(auth)
+      setOrders(Array.isArray(result) ? result : [])
+      setOrdersError('')
+    } catch (e) { setOrdersError(e.message) }
+  }
+
+  async function submitOrder() {
+    if (!selectedQuote || busy) return
+    if (!recipientEmailValid) {
+      setOrdersError('Ingresa un correo de notificación válido antes de generar el pedido.')
+      return
+    }
+    const idempotencyKey = requestKeyRef.current || (globalThis.crypto?.randomUUID
+      ? crypto.randomUUID() : `order_${Date.now()}_${Math.random().toString(36).slice(2)}`)
+    requestKeyRef.current = idempotencyKey
+    setBusy(true); setOrdersError(''); setNotice('')
+    try {
+      const body = { zoneCode, mode: quoteMode, recipientEmail: recipientEmail.trim() }
+      const created = await api.createOrder(auth, body, idempotencyKey)
+      requestKeyRef.current = null
+      await refreshOrders()
+      setNotice(`Pedido ${created.id} registrado. La confirmación se enviará a ${created.recipientEmail}; no se ha procesado ningún pago.`)
+      // El carrito se conserva: no hay reserva ni descuento de stock en esta versión.
+      document.getElementById('mis-pedidos')?.scrollIntoView({ behavior: 'smooth' })
+    } catch (e) { setOrdersError(e.message) }
+    finally { setBusy(false) }
+  }
 
   async function refreshCart() {
     if (!auth.isAuthenticated) return
@@ -63,7 +99,7 @@ export default function App({ auth }) {
   }
 
   useEffect(() => {
-    if (auth.isAuthenticated) refreshCart()
+    if (auth.isAuthenticated) { refreshCart(); refreshOrders() }
     // Sólo recargar al iniciar/cerrar sesión. auth cambia de referencia en MSAL.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.isAuthenticated])
@@ -105,6 +141,7 @@ export default function App({ auth }) {
   }, [auth.isAuthenticated, query, category])
 
   async function add(product) {
+    requestKeyRef.current = null
     setBusy(true); setCartError(''); setNotice('')
     try {
       await api.addItem(auth, { productCode: product.sku, quantity: 1 })
@@ -130,6 +167,7 @@ export default function App({ auth }) {
   }, [auth.isAuthenticated, cart, zoneCode])
 
   function changeZone(nextZone) {
+    requestKeyRef.current = null
     setZoneCode(nextZone)
     window.localStorage.setItem('farmaciasimple.zone', nextZone)
   }
@@ -146,6 +184,7 @@ export default function App({ auth }) {
   }
 
   async function removeGroup(group) {
+    requestKeyRef.current = null
     setBusy(true); setCartError(''); setNotice('')
     try {
       for (const id of group.ids) await api.deleteItem(auth, id)
@@ -207,7 +246,7 @@ export default function App({ auth }) {
         <div className="service-strip" aria-label="Funcionalidades">
           <div><span className="service-icon">⌕</span><strong>Búsqueda en línea</strong><small>Catálogo en PostgreSQL</small></div>
           <div><span className="service-icon">↔</span><strong>Precios por sucursal</strong><small>5 locales de demostración</small></div>
-          <div><span className="service-icon">▤</span><strong>Seguimiento de pedidos</strong><small>Próximamente</small></div>
+          <div><span className="service-icon">▤</span><strong>Pedidos por correo</strong><small>Confirmación mediante RabbitMQ</small></div>
         </div>
         {cartError && <div className="error" role="alert">Error del carrito: {cartError}</div>}
         {notice && <div className="notice" role="status">{notice}</div>}
@@ -267,9 +306,9 @@ export default function App({ auth }) {
             </select>
             <div className="quote-actions" role="group" aria-label="Prioridad de despacho">
               <button type="button" className={`filter-button ${quoteMode === 'CHEAPEST' ? 'active' : ''}`}
-                onClick={() => setQuoteMode('CHEAPEST')}>Mejor precio</button>
+                onClick={() => { requestKeyRef.current = null; setQuoteMode('CHEAPEST') }}>Mejor precio</button>
               <button type="button" className={`filter-button ${quoteMode === 'FASTEST' ? 'active' : ''}`}
-                onClick={() => setQuoteMode('FASTEST')}>Entrega más rápida</button>
+                onClick={() => { requestKeyRef.current = null; setQuoteMode('FASTEST') }}>Entrega más rápida</button>
             </div>
             {quoteLoading && <p className="muted">Calculando alternativas…</p>}
             {quoteError && <p className="error" role="alert">No fue posible cotizar: {quoteError}</p>}
@@ -282,8 +321,32 @@ export default function App({ auth }) {
                 {shipment.items.map(line => <p key={line.sku}>{line.name} ({line.sku}) × {line.quantity} — {currency.format(line.subtotal)}</p>)}
               </div>)}
             </div>}
+            {selectedQuote && <div className="order-action">
+              <label htmlFor="notification-email"><strong>Correo de notificación del pedido</strong>
+                <input id="notification-email" type="email" autoComplete="email" required maxLength={254}
+                  value={recipientEmail} onChange={e => setRecipientEmail(e.target.value)}
+                  placeholder="destinatario@ejemplo.cl" />
+              </label>
+              <p className="muted">Puedes indicar un correo distinto al de tu cuenta. Es obligatorio para confirmar el pedido.</p>
+              <button type="button" className="button-primary" disabled={busy || quoteLoading || !selectedQuote || !recipientEmailValid}
+                onClick={submitOrder}>{busy ? 'Registrando pedido…' : 'Generar pedido (sin pago)'}</button>
+              {ordersError && <p className="error" role="alert">{ordersError}</p>}
+            </div>}
           </div>}
           <p className="cart-disclaimer">Cotización académica con precios, stock, tarifas y plazos simulados. Los despachos se cobran por sucursal. No hay reservas de inventario ni pagos reales; la disponibilidad puede cambiar antes del checkout.</p>
+        </section>
+        <section className="card orders-section" id="mis-pedidos">
+          <div className="section-title"><div><p className="eyebrow">CONFIRMACIONES</p><h2>Mis pedidos</h2></div>
+            <button type="button" className="button-outline" onClick={refreshOrders} disabled={busy}>Actualizar</button></div>
+          {ordersError && <p className="error" role="alert">{ordersError}</p>}
+          {orders.length === 0 ? <p className="muted">Todavía no hay pedidos registrados.</p> :
+            <div className="orders-list">{orders.map(order => <article className="order-item" key={order.id}>
+              <div><strong>Pedido {order.id.slice(0, 8).toUpperCase()}</strong>
+                <p className="muted">{new Date(order.createdAt).toLocaleString('es-CL')} · {order.mode === 'CHEAPEST' ? 'Mejor precio' : 'Entrega más rápida'}</p>
+                <p className="muted">Notificación: {order.recipientEmail}</p></div>
+              <div><strong>{currency.format(order.totalAmount)}</strong><p className="muted">Pendiente de pago</p></div>
+            </article>)}</div>}
+          <p className="muted">Son pedidos de demostración: no se cobra, reserva ni descuenta inventario.</p>
         </section>
         <section className="card account-section" id="cuenta"><div className="section-heading account-heading">
           <div><p className="eyebrow">IDENTIDAD Y SEGURIDAD</p><h2>Mi cuenta</h2></div><span className="security-tag">Sesión autenticada</span></div>
