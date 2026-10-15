@@ -26,6 +26,10 @@ async function request(baseUrl, path, options = {}, auth) {
 }
 
 export const api = {
+  createOrder: (auth, order, idempotencyKey) => request(config.ordersApiUrl, '/api/orders', {
+    method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(order),
+  }, auth),
+  orders: (auth) => request(config.ordersApiUrl, '/api/orders', {}, auth),
   me: (auth) => request(config.authApiUrl, '/api/auth/me', {}, auth),
   cart: (auth) => request(config.cartApiUrl, '/api/cart', {}, auth),
   addItem: (auth, item) => request(config.cartApiUrl, '/api/cart/items', {

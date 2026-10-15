@@ -1,10 +1,20 @@
 # Pedidos360 / Farmacia Simple — Proyecto Cloud Native
 
-> **Estado documentado:** 13 de octubre de 2026  
-> **Versión desplegada confirmada:** `0.3.0-rc.2`. **Versión de código preparada:** `0.4.0-rc.1` (etapas 2+3; NO desplegada ni validada integralmente)  
+> **Estado documentado:** 14 de octubre de 2026  
+> **Versión AWS validada por el usuario:** `0.4.0-rc.1`. **Nueva entrega para pruebas locales:** `0.5.0-rc.1` (Orders + RabbitMQ + Notifications; NO desplegada).  
 > **Región AWS:** `us-east-1`  
 > **Repositorio:** https://github.com/flecaros84/pedidos360  
 > **Ambiente AWS:** laboratorio académico AWS Academy; la aplicación no realiza ventas ni pagos reales.
+
+## Nueva versión 0.5.0-rc.1 — Código preparado, despliegue pendiente
+
+- Orders Service: crear pedidos desde la cotización seleccionada, historial del usuario, snapshot y outbox transaccional.
+- RabbitMQ: exchange direct, cola de eventos durable, confirmación del publicador, reintentos y DLQ.
+- Notifications Service: consumidor, email SMTP, seguimiento de eventos enviados; pruebas Mailpit locales.
+- Sin checkout real, pago, reserva/descuento de stock ni clúster RabbitMQ.
+- **[Diseño, integración Docker, pruebas y guía AWS completa](docs/ETAPAS_4_5_7_0.5.0.md).**
+
+*El resto de este README contiene documentación histórica de etapas anteriores. Ante divergencias de estado/versiones, prevalece esta cabecera y la guía nueva.*
 
 ## 1. Objetivo y alcance
 
