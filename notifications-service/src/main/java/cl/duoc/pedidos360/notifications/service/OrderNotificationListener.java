@@ -21,6 +21,10 @@ public class OrderNotificationListener {
         this.sent=sent;this.mail=mail;this.json=json;this.from=from;
     }
     @RabbitListener(queues="notifications.order-paid")
+    public void receive(org.springframework.amqp.core.Message message) throws Exception {
+        // Use the raw AMQP body to avoid content-type dependent conversion.
+        created(message.getBody());
+    }
     public void created(byte[] body) throws Exception {
         JsonNode event=json.readTree(body);
         UUID eventId=UUID.fromString(event.path("eventId").asText());

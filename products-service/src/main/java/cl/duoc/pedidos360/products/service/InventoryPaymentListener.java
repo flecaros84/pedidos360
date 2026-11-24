@@ -9,6 +9,10 @@ public class InventoryPaymentListener {
   private final InventoryService inventory; private final ObjectMapper mapper;
   public InventoryPaymentListener(InventoryService inventory,ObjectMapper mapper){this.inventory=inventory;this.mapper=mapper;}
   @RabbitListener(queues="inventory.payment-results")
+  public void receive(org.springframework.amqp.core.Message message) throws Exception {
+      // Use the raw AMQP body to avoid content-type dependent conversion.
+      consume(message.getBody());
+  }
   public void consume(byte[] body) throws Exception {
     JsonNode event=mapper.readTree(body);
     String type=event.path("type").asText();

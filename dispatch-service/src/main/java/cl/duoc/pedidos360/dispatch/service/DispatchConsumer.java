@@ -10,6 +10,10 @@ public class DispatchConsumer {
     private final JdbcTemplate db; private final ObjectMapper json;
     public DispatchConsumer(JdbcTemplate db,ObjectMapper json){this.db=db;this.json=json;}
     @RabbitListener(queues="dispatch.order-paid")
+    public void receive(org.springframework.amqp.core.Message message) throws Exception {
+        // Use the raw AMQP body to avoid content-type dependent conversion.
+        consume(message.getBody());
+    }
     public void consume(byte[] body) throws Exception {
         JsonNode data=json.readTree(body);
         UUID id=UUID.fromString(data.path("orderId").asText());

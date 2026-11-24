@@ -19,6 +19,10 @@ public class InventoryStatusListener {
  }
  @Transactional
  @RabbitListener(queues="orders.inventory-final")
+ public void receive(org.springframework.amqp.core.Message message) throws Exception {
+     // Use the raw AMQP body to avoid content-type dependent conversion.
+     consume(message.getBody());
+ }
  public void consume(byte[] body) throws Exception {
    JsonNode event=mapper.readTree(body);
    UUID orderId=UUID.fromString(event.path("orderId").asText());
