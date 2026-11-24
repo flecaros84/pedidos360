@@ -2,8 +2,14 @@ data "aws_availability_zones" "available" { state = "available" }
 data "aws_ami" "al2023" {
   most_recent = true
   owners = ["amazon"]
-  filter { name = "name", values = ["al2023-ami-2023.*-x86_64"] }
-  filter { name = "virtualization-type", values = ["hvm"] }
+  filter {
+    name = "name"
+    values = ["al2023-ami-2023.*-x86_64"]
+  }
+  filter {
+    name = "virtualization-type"
+    values = ["hvm"]
+  }
 }
 resource "aws_vpc" "main" {
   cidr_block = var.vpc_cidr
@@ -32,7 +38,10 @@ resource "aws_subnet" "private" {
 }
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
-  route { cidr_block = "0.0.0.0/0", gateway_id = aws_internet_gateway.igw.id }
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
 }
 resource "aws_route_table_association" "public" {
   count = 2
@@ -48,8 +57,18 @@ resource "aws_route_table_association" "private" {
 resource "aws_security_group" "nat" {
   name = "${var.name}-nat"
   vpc_id = aws_vpc.main.id
-  ingress { protocol = "-1", from_port = 0, to_port = 0, cidr_blocks = [var.vpc_cidr] }
-  egress { protocol = "-1", from_port = 0, to_port = 0, cidr_blocks = ["0.0.0.0/0"] }
+  ingress {
+    protocol = "-1"
+    from_port = 0
+    to_port = 0
+    cidr_blocks = [var.vpc_cidr]
+  }
+  egress {
+    protocol = "-1"
+    from_port = 0
+    to_port = 0
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 resource "aws_instance" "nat" {
   ami = data.aws_ami.al2023.id
@@ -70,42 +89,112 @@ resource "aws_route" "private_default" {
 resource "aws_security_group" "front" {
   name = "${var.name}-frontend"
   vpc_id = aws_vpc.main.id
-  ingress { protocol = "tcp", from_port = 80, to_port = 80, cidr_blocks = ["0.0.0.0/0"] }
-  egress { protocol = "-1", from_port = 0, to_port = 0, cidr_blocks = ["0.0.0.0/0"] }
+  ingress {
+    protocol = "tcp"
+    from_port = 80
+    to_port = 80
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    protocol = "-1"
+    from_port = 0
+    to_port = 0
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 resource "aws_security_group" "rabbit" {
   name = "${var.name}-rabbit"
   vpc_id = aws_vpc.main.id
-  ingress { protocol = "tcp", from_port = 15672, to_port = 15672, cidr_blocks = var.rabbitmq_admin_allowed_cidrs }
-  ingress { protocol = "tcp", from_port = 5672, to_port = 5672, cidr_blocks = [var.vpc_cidr] }
-  egress { protocol = "-1", from_port = 0, to_port = 0, cidr_blocks = ["0.0.0.0/0"] }
+  ingress {
+    protocol = "tcp"
+    from_port = 15672
+    to_port = 15672
+    cidr_blocks = var.rabbitmq_admin_allowed_cidrs
+  }
+  ingress {
+    protocol = "tcp"
+    from_port = 5672
+    to_port = 5672
+    cidr_blocks = [var.vpc_cidr]
+  }
+  egress {
+    protocol = "-1"
+    from_port = 0
+    to_port = 0
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 resource "aws_security_group" "kafka" {
   name = "${var.name}-kafka"
   vpc_id = aws_vpc.main.id
-  ingress { protocol = "tcp", from_port = 9092, to_port = 9092, cidr_blocks = [var.vpc_cidr] }
-  egress { protocol = "-1", from_port = 0, to_port = 0, cidr_blocks = ["0.0.0.0/0"] }
+  ingress {
+    protocol = "tcp"
+    from_port = 9092
+    to_port = 9092
+    cidr_blocks = [var.vpc_cidr]
+  }
+  egress {
+    protocol = "-1"
+    from_port = 0
+    to_port = 0
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 resource "aws_security_group" "backend" {
   name = "${var.name}-backend"
   vpc_id = aws_vpc.main.id
-  ingress { protocol = "tcp", from_port = 8081, to_port = 8089, cidr_blocks = [var.vpc_cidr] }
-  egress { protocol = "-1", from_port = 0, to_port = 0, cidr_blocks = ["0.0.0.0/0"] }
+  ingress {
+    protocol = "tcp"
+    from_port = 8081
+    to_port = 8089
+    cidr_blocks = [var.vpc_cidr]
+  }
+  egress {
+    protocol = "-1"
+    from_port = 0
+    to_port = 0
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 resource "aws_security_group" "alb" {
   name = "${var.name}-internal-alb"
   vpc_id = aws_vpc.main.id
-  ingress { protocol = "tcp", from_port = 80, to_port = 80, cidr_blocks = [var.vpc_cidr] }
-  egress { protocol = "-1", from_port = 0, to_port = 0, cidr_blocks = ["0.0.0.0/0"] }
+  ingress {
+    protocol = "tcp"
+    from_port = 80
+    to_port = 80
+    cidr_blocks = [var.vpc_cidr]
+  }
+  egress {
+    protocol = "-1"
+    from_port = 0
+    to_port = 0
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 resource "aws_security_group" "rds" {
   name = "${var.name}-rds"
   vpc_id = aws_vpc.main.id
-  ingress { protocol = "tcp", from_port = 5432, to_port = 5432, cidr_blocks = [var.vpc_cidr] }
-  egress { protocol = "-1", from_port = 0, to_port = 0, cidr_blocks = [var.vpc_cidr] }
+  ingress {
+    protocol = "tcp"
+    from_port = 5432
+    to_port = 5432
+    cidr_blocks = [var.vpc_cidr]
+  }
+  egress {
+    protocol = "-1"
+    from_port = 0
+    to_port = 0
+    cidr_blocks = [var.vpc_cidr]
+  }
 }
 resource "aws_security_group" "vpc_link" {
   name = "${var.name}-vpc-link"
   vpc_id = aws_vpc.main.id
-  egress { protocol = "-1", from_port = 0, to_port = 0, cidr_blocks = [var.vpc_cidr] }
+  egress {
+    protocol = "-1"
+    from_port = 0
+    to_port = 0
+    cidr_blocks = [var.vpc_cidr]
+  }
 }
