@@ -8,6 +8,25 @@ resource "aws_lb" "backend" {
   enable_deletion_protection = false
   idle_timeout = 60
 }
+# The HTTPS API Gateway also serves the frontend via the private ALB.
+resource "aws_lb_target_group" "frontend" {
+  count = var.enable_api ? 1 : 0
+  name = "p360-frontend"
+  port = 80
+  protocol = "HTTP"
+  vpc_id = aws_vpc.main.id
+  target_type = "instance"
+  health_check {
+    path = "/"
+    matcher = "200"
+  }
+}
+resource "aws_lb_target_group_attachment" "frontend" {
+  count = var.enable_api ? 1 : 0
+  target_group_arn = aws_lb_target_group.frontend[0].arn
+  target_id = aws_instance.frontend.id
+  port = 80
+}
 resource "aws_lb_target_group" "backend" {
   for_each = var.enable_api ? local.backend_ports : {}
   name = "p360-${each.key}"
@@ -36,12 +55,8 @@ resource "aws_lb_listener" "http" {
   port = "80"
   protocol = "HTTP"
   default_action {
-    type = "fixed-response"
-    fixed_response {
-    content_type = "text/plain"
-    status_code = "404"
-    message_body = "Not found"
-    }
+    type = "forward"
+    target_group_arn = aws_lb_target_group.frontend[0].arn
   }
 }
 resource "aws_lb_listener_rule" "routes" {
@@ -61,6 +76,23 @@ resource "aws_lb_listener_rule" "routes" {
         ["/api/${each.key}", "/api/${each.key}/*"]
       )
     }
+  }
+}
+# Unknown API paths must return 404 rather than serving the SPA fallback.
+resource "aws_lb_listener_rule" "unknown_api" {
+  count = var.enable_api ? 1 : 0
+  listener_arn = aws_lb_listener.http[0].arn
+  priority = 900
+  action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      status_code = "404"
+      message_body = "API path not found"
+    }
+  }
+  condition {
+    path_pattern { values = ["/api/*"] }
   }
 }
 resource "aws_apigatewayv2_vpc_link" "backend" {
@@ -100,6 +132,21 @@ resource "aws_apigatewayv2_integration" "backend" {
   connection_type = "VPC_LINK"
   connection_id = aws_apigatewayv2_vpc_link.backend[0].id
   payload_format_version = "1.0"
+}
+# React assets and SPA navigation have no JWT requirement; backend /api routes retain it.
+resource "aws_apigatewayv2_route" "frontend_root" {
+  count = var.enable_api ? 1 : 0
+  api_id = aws_apigatewayv2_api.http[0].id
+  route_key = "GET /"
+  target = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
+  authorization_type = "NONE"
+}
+resource "aws_apigatewayv2_route" "frontend_assets" {
+  count = var.enable_api ? 1 : 0
+  api_id = aws_apigatewayv2_api.http[0].id
+  route_key = "ANY /{proxy+}"
+  target = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
+  authorization_type = "NONE"
 }
 resource "aws_apigatewayv2_route" "api" {
   count = var.enable_api ? 1 : 0

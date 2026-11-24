@@ -1,4 +1,8 @@
-output "frontend_url" { value = var.enable_cloudfront ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}/" : "http://${aws_instance.frontend.public_ip}/" }
+output "frontend_url" {
+  value = var.enable_cloudfront ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}/" : (
+    var.enable_api ? "${aws_apigatewayv2_api.http[0].api_endpoint}/" : "http://${aws_instance.frontend.public_ip}/"
+  )
+}
 output "frontend_instance_id" { value = aws_instance.frontend.id }
 output "api_base_url" { value = var.enable_api ? aws_apigatewayv2_api.http[0].api_endpoint : null }
 output "rabbitmq_management_url" { value = "http://${aws_instance.rabbit.public_ip}:15672/" }

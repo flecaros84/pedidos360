@@ -47,6 +47,11 @@ variable "rds_password" {
   type = string
   sensitive = true
 }
+variable "rds_engine_version" {
+  type = string
+  default = null
+  description = "Exact PostgreSQL version supported by the AWS Academy region. Null uses the AWS default."
+}
 variable "db_instance_class" {
   type = string
   default = "db.t3.micro"
