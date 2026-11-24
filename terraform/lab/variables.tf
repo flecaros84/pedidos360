@@ -1,9 +1,24 @@
-variable "aws_region" { type = string; default = "us-east-1" }
-variable "name" { type = string; default = "pedidos360" }
-variable "vpc_cidr" { type = string; default = "10.50.0.0/16" }
-variable "azure_tenant_id" { type = string }
-variable "azure_audience" { type = string }
-variable "frontend_allowed_origins" { type = list(string) }
+variable "aws_region" {
+  type = string
+  default = "us-east-1"
+}
+variable "name" {
+  type = string
+  default = "pedidos360"
+}
+variable "vpc_cidr" {
+  type = string
+  default = "10.50.0.0/16"
+}
+variable "azure_tenant_id" {
+  type = string
+}
+variable "azure_audience" {
+  type = string
+}
+variable "frontend_allowed_origins" {
+  type = list(string)
+}
 variable "rabbitmq_admin_allowed_cidrs" {
   type = list(string)
   validation {
@@ -16,11 +31,26 @@ variable "instance_profile_name" {
   default = "LabInstanceProfile"
   description = "Existing AWS Academy profile; set to empty string when unavailable."
 }
-variable "image_owner" { type = string; default = "flecaros84" }
-variable "image_tag" { type = string; default = "latest" }
-variable "ssh_key_name" { type = string; default = null }
-variable "rds_password" { type = string; sensitive = true }
-variable "db_instance_class" { type = string; default = "db.t3.micro" }
+variable "image_owner" {
+  type = string
+  default = "flecaros84"
+}
+variable "image_tag" {
+  type = string
+  default = "latest"
+}
+variable "ssh_key_name" {
+  type = string
+  default = null
+}
+variable "rds_password" {
+  type = string
+  sensitive = true
+}
+variable "db_instance_class" {
+  type = string
+  default = "db.t3.micro"
+}
 variable "instance_types" {
   type = map(string)
   default = {
@@ -39,15 +69,39 @@ variable "instance_types" {
     nat = "t3.micro"
   }
 }
-variable "root_volume_gib" { type = number; default = 12 }
-variable "broker_volume_gib" { type = number; default = 20 }
-variable "enable_rds" { type = bool; default = true }
-variable "enable_api" { type = bool; default = true }
-variable "enable_websocket" { type = bool; default = true }
-variable "lab_role_name" { type = string; default = "LabRole" }
+variable "root_volume_gib" {
+  type = number
+  default = 12
+}
+variable "broker_volume_gib" {
+  type = number
+  default = 20
+}
+variable "enable_rds" {
+  type = bool
+  default = true
+}
+variable "enable_api" {
+  type = bool
+  default = true
+}
+variable "enable_websocket" {
+  type = bool
+  default = true
+}
+variable "lab_role_name" {
+  type = string
+  default = "LabRole"
+}
 
-variable "enable_cloudfront" { type = bool; default = true }
-variable "enable_auto_stop" { type = bool; default = false }
+variable "enable_cloudfront" {
+  type = bool
+  default = true
+}
+variable "enable_auto_stop" {
+  type = bool
+  default = false
+}
 variable "auto_stop_cron" {
   type = string
   default = "cron(0 5 * * ? *)"
