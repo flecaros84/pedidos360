@@ -44,8 +44,12 @@ variable "ssh_key_name" {
   default = null
 }
 variable "rds_password" {
-  type = string
+  type      = string
   sensitive = true
+  validation {
+    condition     = length(var.rds_password) >= 8 && length(var.rds_password) <= 128
+    error_message = "RDS master password must contain 8 to 128 characters; use a long random value."
+  }
 }
 variable "rds_engine_version" {
   type = string

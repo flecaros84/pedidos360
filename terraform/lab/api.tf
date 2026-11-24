@@ -55,8 +55,25 @@ resource "aws_lb_listener" "http" {
   port = "80"
   protocol = "HTTP"
   default_action {
-    type = "forward"
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      status_code  = "404"
+      message_body = "Not found"
+    }
+  }
+}
+# Frontend SPA fallback: all API rules (including the unknown API 404) take priority.
+resource "aws_lb_listener_rule" "frontend" {
+  count        = var.enable_api ? 1 : 0
+  listener_arn = aws_lb_listener.http[0].arn
+  priority     = 1000
+  action {
+    type             = "forward"
     target_group_arn = aws_lb_target_group.frontend[0].arn
+  }
+  condition {
+    path_pattern { values = ["/*"] }
   }
 }
 resource "aws_lb_listener_rule" "routes" {
