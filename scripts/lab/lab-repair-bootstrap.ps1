@@ -46,14 +46,13 @@ if ([string]::IsNullOrWhiteSpace($CommandId)) {
     $tmp = New-TemporaryFile
     try {
         [System.IO.File]::WriteAllText($tmp.FullName, $request, [System.Text.UTF8Encoding]::new($false))
-        $commandId = aws ssm send-command --cli-input-json "file://$($tmp.FullName)" --query Command.CommandId --output text
+        $CommandId = aws ssm send-command --cli-input-json "file://$($tmp.FullName)" --query Command.CommandId --output text
         if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($commandId) -or $commandId -eq 'None') {
             throw 'Could not send the repair command to SSM.'
         }
     } finally {
         Remove-Item $tmp.FullName -Force -ErrorAction SilentlyContinue
     }
-        $CommandId = $commandId
 } else {
     Write-Host "Inspecting existing SSM command without resending bootstrap." -ForegroundColor Cyan
 }
