@@ -29,7 +29,7 @@ TAG="$(sed -n 's/^IMAGE_TAG=//p' /opt/pedidos360/service.env | tail -1)"
 IMAGE="${docker_image}"
 if [ -n "$TAG" ] && [ "${service_name}" != rabbitmq ] && [ "${service_name}" != kafka ]; then
   # Only override application image tags; official broker tags must be preserved.
-  IMAGE="${IMAGE%:*}:$TAG"
+  IMAGE="$${IMAGE%:*}:$TAG"
 fi
 EXTRA=""
 if [ "${service_name}" = rabbitmq ]; then
