@@ -82,10 +82,14 @@ async function bootstrap() {
 
 bootstrap().catch((error) => {
   console.error(error)
-  document.getElementById('root').innerHTML = `
-    <main style="font-family:sans-serif;padding:2rem">
-      <h1>Error de configuración</h1>
-      <pre>${error.message}</pre>
-    </main>
-  `
+  const root = document.getElementById('root')
+  root.replaceChildren()
+  const main = document.createElement('main')
+  const heading = document.createElement('h1')
+  const details = document.createElement('pre')
+  main.style.cssText = 'font-family:sans-serif;padding:2rem'
+  heading.textContent = 'Error de configuración'
+  details.textContent = error.message
+  main.append(heading, details)
+  root.append(main)
 })

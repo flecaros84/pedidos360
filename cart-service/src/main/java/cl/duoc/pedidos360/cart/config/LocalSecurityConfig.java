@@ -9,7 +9,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
-@ConditionalOnProperty(name = "app.security.mode", havingValue = "local", matchIfMissing = true)
+@ConditionalOnProperty(name = "app.security.mode", havingValue = "local")
 public class LocalSecurityConfig {
 
     @Bean

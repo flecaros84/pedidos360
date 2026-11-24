@@ -49,8 +49,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                        .anyRequest().authenticated())
+                        .requestMatchers("/actuator/health", "/actuator/info", "/internal/inventory/**").permitAll()
+                        .anyRequest().hasAuthority("SCOPE_pedidos360.access"))
                 .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()))
                 .build();
     }
@@ -72,7 +72,7 @@ public class SecurityConfig {
 
     // Modo local exclusivamente para desarrollo y pruebas automatizadas.
     @Bean
-    @ConditionalOnProperty(name = "app.security.mode", havingValue = "local", matchIfMissing = true)
+    @ConditionalOnProperty(name = "app.security.mode", havingValue = "local")
     SecurityFilterChain localSecurity(HttpSecurity http) throws Exception {
         return http.csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())

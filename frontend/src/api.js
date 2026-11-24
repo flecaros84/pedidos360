@@ -26,6 +26,13 @@ async function request(baseUrl, path, options = {}, auth) {
 }
 
 export const api = {
+  pay: (auth, data, key) => request(config.paymentsApiUrl, '/api/payments', {
+    method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(data),
+  }, auth),
+  payment: (auth, id) => request(config.paymentsApiUrl, `/api/payments/${id}`, {}, auth),
+  metrics: (auth) => request(config.analyticsApiUrl, '/api/analytics/metrics', {}, auth),
+  recommendations: (auth) => request(config.analyticsApiUrl, '/api/analytics/recommendations', {}, auth),
+  websocketTicket: (auth) => request(config.analyticsApiUrl, '/api/analytics/ws-ticket', { method: 'POST' }, auth),
   createOrder: (auth, order, idempotencyKey) => request(config.ordersApiUrl, '/api/orders', {
     method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(order),
   }, auth),

@@ -20,7 +20,7 @@ public class OrderNotificationListener {
        @Value("${app.mail.from}") String from) {
         this.sent=sent;this.mail=mail;this.json=json;this.from=from;
     }
-    @RabbitListener(queues="notifications.order-created")
+    @RabbitListener(queues="notifications.order-paid")
     public void created(byte[] body) throws Exception {
         JsonNode event=json.readTree(body);
         UUID eventId=UUID.fromString(event.path("eventId").asText());
@@ -40,12 +40,12 @@ public class OrderNotificationListener {
         }
         SimpleMailMessage message=new SimpleMailMessage();
         message.setFrom(from);message.setTo(recipient);
-        message.setSubject("Farmacia Simple - Pedido registrado " + orderId);
-        message.setText("Hemos registrado tu pedido de demostración.\n"
+        message.setSubject("Farmacia Simple - Compra confirmada " + orderId);
+        message.setText("Tu compra de demostración ha sido confirmada.\n"
             +"Pedido: "+orderId+"\nZona: "+event.path("zoneCode").asText()
             +"\nModalidad: "+event.path("mode").asText()
             +"\nTotal (con despacho): $"+total.toPlainString()+" CLP\n"
-            +lines+"\nEstado: PENDIENTE DE PAGO. No existe pago real ni reserva de stock.\n");
+            +lines+"\nEstado: PAGO APROBADO. Inventario confirmado.\n");
         mail.send(message);
         // Se graba sólo después del envío; si falla SMTP, la cola reintenta y después manda a DLQ.
         // Crash después de SMTP y antes de este insert puede generar correos duplicados.

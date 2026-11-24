@@ -1,0 +1,50 @@
+name: Pedidos360 v1 - Deploy EC2 vía SSM
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Immutable git commit SHA of published images'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: aws-lab
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate image tag
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          [[ "$IMAGE_TAG" =~ ^[a-f0-9]{40}$ ]] || { echo 'Use a 40-character git SHA'; exit 1; }
+      - name: Configure temporary AWS Academy credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+      - name: Deploy frontend and nine application instances
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -euo pipefail
+          for svc in auth cart products orders notifications payment audit analytics dispatch frontend; do
+            instance=$(aws ec2 describe-instances \
+              --filters "Name=tag:Project,Values=Pedidos360" "Name=tag:Environment,Values=lab" \
+                "Name=tag:Name,Values=pedidos360-$svc" "Name=instance-state-name,Values=running" \
+              --query 'Reservations[].Instances[].InstanceId' --output text)
+            [[ -n "$instance" ]] || { echo "Instance $svc is not running"; exit 1; }
+            cmd="sudo /opt/pedidos360/configure.sh && sudo sed -i '/^IMAGE_TAG=/d' /opt/pedidos360/service.env && echo 'IMAGE_TAG=$IMAGE_TAG' | sudo tee -a /opt/pedidos360/service.env >/dev/null && sudo systemctl restart pedidos360.service"
+            id=$(aws ssm send-command --document-name AWS-RunShellScript --instance-ids "$instance" \
+                --parameters "commands=[\"$cmd\"]" --query 'Command.CommandId' --output text)
+            aws ssm wait command-executed --command-id "$id" --instance-id "$instance"
+            result=$(aws ssm get-command-invocation --command-id "$id" --instance-id "$instance" --query Status --output text)
+            [[ "$result" == Success ]] || { echo "$svc deployment failed: $result"; exit 1; }
+            echo "$svc deployed ($IMAGE_TAG)"
+          done

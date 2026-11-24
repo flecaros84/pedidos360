@@ -54,7 +54,7 @@ public class AzureSecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health").permitAll()
-                        .anyRequest().authenticated())
+                        .anyRequest().hasAuthority("SCOPE_pedidos360.access"))
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
         return http.build();
     }

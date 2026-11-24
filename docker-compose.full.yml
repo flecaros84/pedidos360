@@ -1,0 +1,348 @@
+# Complete local integration stack. Development secrets ONLY; never use in AWS.
+name: pedidos360
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: pedidos360
+      POSTGRES_USER: pedidos360
+      POSTGRES_PASSWORD: local-only-database-password
+    volumes:
+    - postgresdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U pedidos360 -d pedidos360
+      interval: 5s
+      retries: 20
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: farmacia
+      RABBITMQ_DEFAULT_PASS: local-only-rabbit-password
+    ports:
+    - 127.0.0.1:15672:15672
+    volumes:
+    - rabbitdata:/var/lib/rabbitmq
+    healthcheck:
+      test:
+      - CMD
+      - rabbitmq-diagnostics
+      - -q
+      - ping
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  kafka:
+    image: apache/kafka:3.9.1
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+    - kafkadata:/var/lib/kafka/data
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+    - 127.0.0.1:8025:8025
+  dynamodb:
+    image: amazon/dynamodb-local:2.6.1
+    command:
+    - -jar
+    - DynamoDBLocal.jar
+    - -sharedDb
+    - -dbPath
+    - /home/dynamodblocal/data
+    volumes:
+    - dynamodata:/home/dynamodblocal/data
+    ports:
+    - 127.0.0.1:8000:8000
+  dynamodb-init:
+    image: amazon/aws-cli:2.22.7
+    depends_on:
+    - dynamodb
+    entrypoint:
+    - /bin/sh
+    - -c
+    command: sleep 8; for table in pedidos360-events pedidos360-ws-tickets pedidos360-ws-connections;
+      do key=eventId; [ "$$table" = pedidos360-ws-tickets ] && key=ticketId; [ "$$table"
+      = pedidos360-ws-connections ] && key=connectionId; aws dynamodb create-table
+      --table-name "$$table" --attribute-definitions AttributeName="$$key",AttributeType=S
+      --key-schema AttributeName="$$key",KeyType=HASH --billing-mode PAY_PER_REQUEST
+      --endpoint-url http://dynamodb:8000 --region us-east-1 2>/dev/null || true;
+      done
+    environment:
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_DEFAULT_REGION: us-east-1
+  auth:
+    build: ./auth-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: '8081'
+      APP_SECURITY_MODE: local
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/placeholder/v2.0
+      AZURE_AUDIENCE: local-demo
+      APP_CORS_ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+    depends_on: {}
+    mem_limit: 1600m
+    ports:
+    - 127.0.0.1:8081:8081
+  cart:
+    build: ./cart-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: '8082'
+      APP_SECURITY_MODE: local
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/placeholder/v2.0
+      AZURE_AUDIENCE: local-demo
+      APP_CORS_ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: local-only-database-password
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PRODUCTS_INTERNAL_URL: http://products:8083
+      DATABASE_DDL_AUTO: update
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    mem_limit: 1600m
+    ports:
+    - 127.0.0.1:8082:8082
+  products:
+    build: ./products-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: '8083'
+      APP_SECURITY_MODE: local
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/placeholder/v2.0
+      AZURE_AUDIENCE: local-demo
+      APP_CORS_ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: local-only-database-password
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: '5672'
+      RABBITMQ_USERNAME: farmacia
+      RABBITMQ_PASSWORD: local-only-rabbit-password
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CATALOG_SEED_DEMO: 'true'
+      DATABASE_DDL_AUTO: update
+      INTERNAL_SERVICE_TOKEN: local-internal-strong-token
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    mem_limit: 1600m
+    ports:
+    - 127.0.0.1:8083:8083
+  orders:
+    build: ./orders-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: '8084'
+      APP_SECURITY_MODE: local
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/placeholder/v2.0
+      AZURE_AUDIENCE: local-demo
+      APP_CORS_ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: local-only-database-password
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: '5672'
+      RABBITMQ_USERNAME: farmacia
+      RABBITMQ_PASSWORD: local-only-rabbit-password
+      CART_INTERNAL_URL: http://cart:8082
+      DATABASE_DDL_AUTO: update
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    mem_limit: 1600m
+    ports:
+    - 127.0.0.1:8084:8084
+  notifications:
+    build: ./notifications-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: '8085'
+      APP_SECURITY_MODE: local
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/placeholder/v2.0
+      AZURE_AUDIENCE: local-demo
+      APP_CORS_ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: local-only-database-password
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: '5672'
+      RABBITMQ_USERNAME: farmacia
+      RABBITMQ_PASSWORD: local-only-rabbit-password
+      SMTP_HOST: mailpit
+      SMTP_PORT: '1025'
+      SMTP_AUTH: 'false'
+      SMTP_STARTTLS: 'false'
+      SMTP_FROM: demo@farmaciasimple.local
+      NOTIFICATIONS_ALLOW_TEST: 'true'
+      DATABASE_DDL_AUTO: update
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    mem_limit: 1600m
+    ports:
+    - 127.0.0.1:8085:8085
+  payment:
+    build: ./payment-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: '8086'
+      APP_SECURITY_MODE: local
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/placeholder/v2.0
+      AZURE_AUDIENCE: local-demo
+      APP_CORS_ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: local-only-database-password
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: '5672'
+      RABBITMQ_USERNAME: farmacia
+      RABBITMQ_PASSWORD: local-only-rabbit-password
+      ORDERS_INTERNAL_URL: http://orders:8084
+      PRODUCTS_INTERNAL_URL: http://products:8083
+      INTERNAL_SERVICE_TOKEN: local-internal-strong-token
+      PAYMENT_SIMULATION_ENABLED: 'true'
+      ANTIFRAUD_HMAC_KEY: local-only-very-strong-antifraud-secret
+      FRONTEND_PUBLIC_URL: http://localhost
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      orders:
+        condition: service_started
+      products:
+        condition: service_started
+    mem_limit: 1600m
+    ports:
+    - 127.0.0.1:8086:8086
+  audit:
+    build: ./audit-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: '8087'
+      APP_SECURITY_MODE: local
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/placeholder/v2.0
+      AZURE_AUDIENCE: local-demo
+      APP_CORS_ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: local-only-database-password
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: '5672'
+      RABBITMQ_USERNAME: farmacia
+      RABBITMQ_PASSWORD: local-only-rabbit-password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    mem_limit: 1600m
+    ports:
+    - 127.0.0.1:8087:8087
+  analytics:
+    build: ./analytics-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: '8088'
+      APP_SECURITY_MODE: local
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/placeholder/v2.0
+      AZURE_AUDIENCE: local-demo
+      APP_CORS_ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: local-only-database-password
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      DYNAMODB_TABLE: pedidos360-events
+      WS_TICKETS_TABLE: pedidos360-ws-tickets
+      WS_CONNECTIONS_TABLE: pedidos360-ws-connections
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      dynamodb-init:
+        condition: service_completed_successfully
+    mem_limit: 3g
+    ports:
+    - 127.0.0.1:8088:8088
+  dispatch:
+    build: ./dispatch-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: '8089'
+      APP_SECURITY_MODE: local
+      AZURE_ISSUER_URI: https://login.microsoftonline.com/placeholder/v2.0
+      AZURE_AUDIENCE: local-demo
+      APP_CORS_ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+      DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
+      DATABASE_USERNAME: pedidos360
+      DATABASE_PASSWORD: local-only-database-password
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: '5672'
+      RABBITMQ_USERNAME: farmacia
+      RABBITMQ_PASSWORD: local-only-rabbit-password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    mem_limit: 1600m
+    ports:
+    - 127.0.0.1:8089:8089
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+    - 80:80
+    environment:
+      AUTH_MODE: local
+      AUTH_API_URL: http://localhost:8081
+      CART_API_URL: http://localhost:8082
+      PRODUCTS_API_URL: http://localhost:8083
+      ORDERS_API_URL: http://localhost:8084
+      PAYMENTS_API_URL: http://localhost:8086
+      ANALYTICS_API_URL: http://localhost:8088
+      DISPATCH_API_URL: http://localhost:8089
+      WS_PUBLIC_URL: ''
+    depends_on:
+    - auth
+    - cart
+    - products
+    - orders
+    - payment
+    - analytics
+volumes:
+  postgresdata: null
+  rabbitdata: null
+  kafkadata: null
+  dynamodata: null

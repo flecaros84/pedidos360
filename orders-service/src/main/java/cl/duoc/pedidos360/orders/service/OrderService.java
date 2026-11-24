@@ -22,7 +22,13 @@ public class OrderService {
     public OrderResponse create(String userId,String email,String key,OrderRequest request,
                                 String bearer,String demoUser) {
         var existing=orders.findByUserIdAndRequestKey(userId,key);
-        if(existing.isPresent()) return OrderResponse.from(existing.get(),mapper);
+        if(existing.isPresent()) {
+            CustomerOrder found=existing.get();
+            if(!found.getRecipientEmail().equals(email) || !found.getMode().equals(request.mode()) ||
+                    !found.getZoneCode().equals(request.zoneCode()))
+                throw new ResponseStatusException(HttpStatus.CONFLICT,"Idempotency-Key usada con datos diferentes");
+            return OrderResponse.from(found,mapper);
+        }
         var quote=cart.quote(request.zoneCode(),bearer,demoUser);
         var option="FASTEST".equals(request.mode())?quote.fastest():quote.cheapest();
         if(option==null || option.shipments()==null || option.shipments().isEmpty()
@@ -53,7 +59,7 @@ public class OrderService {
             event.put("totalAmount",order.getTotalAmount());
             event.put("createdAt",order.getCreatedAt().toString());
             event.put("quote",option);
-            outbox.save(new OutboxEvent(RabbitConfig.KEY,mapper.writeValueAsString(event)));
+            outbox.save(new OutboxEvent(RabbitConfig.KEY_CREATED,mapper.writeValueAsString(event)));
             return OrderResponse.from(order,mapper);
         } catch(com.fasterxml.jackson.core.JsonProcessingException ex) {
             throw new IllegalStateException("No se pudo serializar el pedido",ex);

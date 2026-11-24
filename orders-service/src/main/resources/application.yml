@@ -37,7 +37,7 @@ app:
   outbox:
     poll-ms: 5000
   security:
-    mode: ${APP_SECURITY_MODE:local}
+    mode: ${APP_SECURITY_MODE:azure}
     azure:
       issuer-uri: ${AZURE_ISSUER_URI:https://login.microsoftonline.com/placeholder/v2.0}
       audience: ${AZURE_AUDIENCE:placeholder}

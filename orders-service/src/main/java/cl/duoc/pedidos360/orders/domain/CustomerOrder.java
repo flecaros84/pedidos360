@@ -27,5 +27,7 @@ public class CustomerOrder {
     public String getRecipientEmail(){return recipientEmail;} public String getZoneCode(){return zoneCode;}
     public String getMode(){return mode;} public String getStatus(){return status;}
     public BigDecimal getTotalAmount(){return totalAmount;} public String getQuoteJson(){return quoteJson;}
+    public void markPaid(){if("PENDING_PAYMENT".equals(status))status="PAID";}
+    public void markPaymentFailed(){if("PENDING_PAYMENT".equals(status))status="PAYMENT_FAILED";}
     public Instant getCreatedAt(){return createdAt;}
 }

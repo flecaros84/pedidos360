@@ -9,6 +9,10 @@ export const config = {
   authApiUrl: (env.AUTH_API_URL || 'http://localhost:8081').replace(/\/$/, ''),
   cartApiUrl: (env.CART_API_URL || 'http://localhost:8082').replace(/\/$/, ''),
   productsApiUrl: (env.PRODUCTS_API_URL || 'http://localhost:8083').replace(/\/$/, ''),
+  paymentsApiUrl: (env.PAYMENTS_API_URL || 'http://localhost:8086').replace(/\/$/, ''),
+  analyticsApiUrl: (env.ANALYTICS_API_URL || 'http://localhost:8088').replace(/\/$/, ''),
+  dispatchApiUrl: (env.DISPATCH_API_URL || 'http://localhost:8089').replace(/\/$/, ''),
+  websocketUrl: env.WS_PUBLIC_URL || '',
   ordersApiUrl: (env.ORDERS_API_URL || (env.AUTH_MODE === 'azure' ? env.PRODUCTS_API_URL : '') || 'http://localhost:8084').replace(/\/$/, ''),
 }
 

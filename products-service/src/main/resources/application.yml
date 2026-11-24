@@ -2,6 +2,11 @@ server:
   port: ${SERVER_PORT:8083}
 
 spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
   application:
     name: products-service
   datasource:
@@ -16,11 +21,19 @@ spring:
     hibernate:
       ddl-auto: ${DATABASE_DDL_AUTO:update}
 
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    publisher-confirm-type: correlated
 app:
+  internal:
+    token: ${INTERNAL_SERVICE_TOKEN:}
   catalog:
     seed-demo: ${CATALOG_SEED_DEMO:false}
   security:
-    mode: ${APP_SECURITY_MODE:local}
+    mode: ${APP_SECURITY_MODE:azure}
     azure:
       issuer-uri: ${AZURE_ISSUER_URI:https://login.microsoftonline.com/placeholder/v2.0}
       audience: ${AZURE_AUDIENCE:placeholder}
@@ -35,3 +48,4 @@ management:
   endpoint:
     health:
       show-details: never
+

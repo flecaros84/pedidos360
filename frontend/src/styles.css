@@ -222,3 +222,12 @@ h2 { margin: 0; font-size: 1.85rem; line-height: 1.2; }
 .orders-list { display:flex; flex-direction:column; gap:.6rem; margin:1rem 0; }
 .order-item { display:flex; justify-content:space-between; flex-wrap:wrap; gap:1rem; border:1px solid #e1eee7; border-radius:10px; padding:1rem; }
 .order-item .muted { font-size:.82rem; margin:.3rem 0 0; }
+
+/* Integrated checkout and analytics */
+.checkout-options { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1rem 0; }
+.checkout-options label { display: flex; flex-direction: column; gap: .35rem; flex: 1; min-width: 200px; }
+.checkout-options select, .checkout-options input { border: 1px solid #aab9b3; border-radius: 8px; padding: .6rem; }
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 1rem; margin: 1.25rem 0; }
+.metrics-grid article { background: #f0f6f1; border-radius: 12px; padding: 1rem; display: flex; flex-direction: column; }
+.metrics-grid strong { font-size: 1.8rem; }
+.analytics-section { margin-top: 2rem; }

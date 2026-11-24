@@ -20,6 +20,10 @@ window.__ENV__ = {
   AUTH_API_URL: "${AUTH_API_URL:-http://localhost:8081}",
   CART_API_URL: "${CART_API_URL:-http://localhost:8082}",
   PRODUCTS_API_URL: "${PRODUCTS_API_URL:-http://localhost:8083}",
-  ORDERS_API_URL: "$ORDER_ENDPOINT"
+  ORDERS_API_URL: "$ORDER_ENDPOINT",
+  PAYMENTS_API_URL: "${PAYMENTS_API_URL:-http://localhost:8086}",
+  ANALYTICS_API_URL: "${ANALYTICS_API_URL:-http://localhost:8088}",
+  DISPATCH_API_URL: "${DISPATCH_API_URL:-http://localhost:8089}",
+  WS_PUBLIC_URL: "${WS_PUBLIC_URL:-}"
 };
 EOF

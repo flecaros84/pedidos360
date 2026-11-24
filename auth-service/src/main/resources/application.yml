@@ -13,7 +13,7 @@ management:
 
 app:
   security:
-    mode: ${APP_SECURITY_MODE:local}
+    mode: ${APP_SECURITY_MODE:azure}
     azure:
       tenant-id: ${AZURE_TENANT_ID:}
       client-id: ${AZURE_CLIENT_ID:}

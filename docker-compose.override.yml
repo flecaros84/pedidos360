@@ -92,13 +92,13 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USERNAME: farmacia
       RABBITMQ_PASSWORD: farmacia-local
-      SMTP_HOST: smtp.gmail.com
-      SMTP_PORT: "587"
-      SMTP_USERNAME: ${SMTP_USERNAME}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      SMTP_AUTH: "true"
-      SMTP_STARTTLS: "true"
-      SMTP_FROM: ${SMTP_USERNAME}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_AUTH: "false"
+      SMTP_STARTTLS: "false"
+      SMTP_FROM: demo@farmaciasimple.local
     depends_on:
       postgres:
         condition: service_healthy

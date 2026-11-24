@@ -49,6 +49,11 @@ export default function App({ auth }) {
   const [orders, setOrders] = useState([])
   const [ordersError, setOrdersError] = useState('')
   const [recipientEmail, setRecipientEmail] = useState('')
+  const [paymentMode, setPaymentMode] = useState('SIMULATED')
+  const [cardReference, setCardReference] = useState('demo-card-0001')
+  const [recommendations, setRecommendations] = useState([])
+  const [analyticsMetrics, setAnalyticsMetrics] = useState(null)
+  const [analyticsError, setAnalyticsError] = useState('')
   const requestKeyRef = useRef(null)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('Todos')
@@ -56,6 +61,36 @@ export default function App({ auth }) {
   const cartCount = groupedCart.reduce((sum, item) => sum + item.quantity, 0)
   const selectedQuote = quoteMode === 'FASTEST' ? quotes?.fastest : quotes?.cheapest
   const recipientEmailValid = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/.test(recipientEmail.trim())
+
+  async function loadRecommendations() {
+    if (!auth.isAuthenticated) return
+    try { setRecommendations(await api.recommendations(auth)) }
+    catch { setRecommendations([]) }
+  }
+
+  async function payOrder(order) {
+    if (busy) return
+    setBusy(true); setOrdersError(''); setNotice('')
+    try {
+      const key = globalThis.crypto?.randomUUID?.() || `pay_${Date.now()}`
+      const result = await api.pay(auth, {
+        orderId: order.id, method: paymentMode,
+        ...(paymentMode === 'SIMULATED' ? { cardReference, approved: true } : {}),
+      }, key)
+      if (paymentMode === 'WEBPAY' && result.redirectUrl && result.webpayToken) {
+        const form = document.createElement('form')
+        form.method = 'POST'; form.action = result.redirectUrl
+        const token = document.createElement('input')
+        token.type = 'hidden'; token.name = 'token_ws'; token.value = result.webpayToken
+        form.appendChild(token); document.body.appendChild(form); form.submit()
+        return
+      }
+      setNotice(`Pago ${result.status} — ${result.id}. El stock y la orden se actualizarán mediante RabbitMQ.`)
+      await refreshOrders()
+      await loadRecommendations()
+    } catch (e) { setOrdersError(e.message) }
+    finally { setBusy(false) }
+  }
 
   async function refreshOrders() {
     if (!auth.isAuthenticated) return
@@ -81,8 +116,8 @@ export default function App({ auth }) {
       const created = await api.createOrder(auth, body, idempotencyKey)
       requestKeyRef.current = null
       await refreshOrders()
-      setNotice(`Pedido ${created.id} registrado. La confirmación se enviará a ${created.recipientEmail}; no se ha procesado ningún pago.`)
-      // El carrito se conserva: no hay reserva ni descuento de stock en esta versión.
+      setNotice(`Pedido ${created.id} registrado. Selecciona un método de pago en Mis pedidos para continuar.`)
+      // Inventory is reserved only when checkout starts.
       document.getElementById('mis-pedidos')?.scrollIntoView({ behavior: 'smooth' })
     } catch (e) { setOrdersError(e.message) }
     finally { setBusy(false) }
@@ -99,8 +134,36 @@ export default function App({ auth }) {
   }
 
   useEffect(() => {
-    if (auth.isAuthenticated) { refreshCart(); refreshOrders() }
+    if (auth.isAuthenticated) { refreshCart(); refreshOrders(); loadRecommendations() }
     // Sólo recargar al iniciar/cerrar sesión. auth cambia de referencia en MSAL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.isAuthenticated])
+
+  useEffect(() => {
+    if (!auth.isAuthenticated) return
+    let alive = true
+    let socket = null
+    let poll = null
+    api.metrics(auth).then(data => { if (alive) setAnalyticsMetrics(data) })
+      .catch(e => { if (alive) setAnalyticsError(e.message) })
+    if (config.websocketUrl) {
+      api.websocketTicket(auth).then(({ ticket }) => {
+        if (!alive) return
+        socket = new WebSocket(`${config.websocketUrl}?ticket=${encodeURIComponent(ticket)}`)
+        socket.onmessage = event => {
+          try {
+            const next = JSON.parse(event.data)
+            if (alive && next.type === 'analytics.metrics') setAnalyticsMetrics(next.data)
+          } catch { /* Ignore non-metric events. */ }
+        }
+      }).catch(e => { if (alive) setAnalyticsError(e.message) })
+    } else {
+      // Local fallback; AWS dashboard uses genuine WebSocket pushes.
+      poll = setInterval(() => api.metrics(auth).then(data => {
+        if (alive) setAnalyticsMetrics(data)
+      }).catch(() => {}), 15000)
+    }
+    return () => { alive = false; socket?.close(); if (poll) clearInterval(poll) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.isAuthenticated])
 
@@ -178,7 +241,9 @@ export default function App({ auth }) {
       return
     }
     try {
+      await api.product(auth, product.id) // Publishes a product.view Kafka event.
       const offers = await api.availability(auth, product.id)
+      await loadRecommendations()
       setComparison(prev => ({ ...prev, [product.sku]: offers }))
     } catch (e) { setCatalogError(e.message) }
   }
@@ -329,24 +394,53 @@ export default function App({ auth }) {
               </label>
               <p className="muted">Puedes indicar un correo distinto al de tu cuenta. Es obligatorio para confirmar el pedido.</p>
               <button type="button" className="button-primary" disabled={busy || quoteLoading || !selectedQuote || !recipientEmailValid}
-                onClick={submitOrder}>{busy ? 'Registrando pedido…' : 'Generar pedido (sin pago)'}</button>
+                onClick={submitOrder}>{busy ? 'Registrando pedido…' : 'Generar pedido'}</button>
               {ordersError && <p className="error" role="alert">{ordersError}</p>}
             </div>}
           </div>}
-          <p className="cart-disclaimer">Cotización académica con precios, stock, tarifas y plazos simulados. Los despachos se cobran por sucursal. No hay reservas de inventario ni pagos reales; la disponibilidad puede cambiar antes del checkout.</p>
+          <p className="cart-disclaimer">Cotización académica con precios, stock, tarifas y plazos simulados. Los despachos se cobran por sucursal. El stock se reserva durante el checkout y se confirma tras la aprobación del pago.</p>
         </section>
         <section className="card orders-section" id="mis-pedidos">
           <div className="section-title"><div><p className="eyebrow">CONFIRMACIONES</p><h2>Mis pedidos</h2></div>
             <button type="button" className="button-outline" onClick={refreshOrders} disabled={busy}>Actualizar</button></div>
+          <div className="checkout-options">
+            <label>Medio de pago
+              <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)}>
+                <option value="SIMULATED">Simulación académica</option>
+                <option value="WEBPAY">Webpay Plus (integración)</option>
+              </select>
+            </label>
+            {paymentMode === 'SIMULATED' && <label>Referencia de tarjeta de prueba (sin PAN)
+              <input value={cardReference} onChange={e => setCardReference(e.target.value)} minLength={4} maxLength={64}/>
+            </label>}
+          </div>
           {ordersError && <p className="error" role="alert">{ordersError}</p>}
           {orders.length === 0 ? <p className="muted">Todavía no hay pedidos registrados.</p> :
             <div className="orders-list">{orders.map(order => <article className="order-item" key={order.id}>
               <div><strong>Pedido {order.id.slice(0, 8).toUpperCase()}</strong>
                 <p className="muted">{new Date(order.createdAt).toLocaleString('es-CL')} · {order.mode === 'CHEAPEST' ? 'Mejor precio' : 'Entrega más rápida'}</p>
                 <p className="muted">Notificación: {order.recipientEmail}</p></div>
-              <div><strong>{currency.format(order.totalAmount)}</strong><p className="muted">Pendiente de pago</p></div>
+              <div><strong>{currency.format(order.totalAmount)}</strong><p className="muted">{order.status === 'PAID' ? 'Pago aprobado' : order.status === 'PAYMENT_FAILED' ? 'Pago rechazado' : 'Pendiente de pago'}</p>
+                {order.status === 'PENDING_PAYMENT' && <button type="button" className="button-primary" disabled={busy} onClick={() => payOrder(order)}>Pagar pedido</button>}
+              </div>
             </article>)}</div>}
-          <p className="muted">Son pedidos de demostración: no se cobra, reserva ni descuenta inventario.</p>
+          <p className="muted">Las pruebas usan el simulador o el ambiente de integración de Webpay, nunca tarjetas reales en nuestro backend.</p>
+        </section>
+        <section className="card analytics-section" id="analitica">
+          <div className="section-title"><div><p className="eyebrow">EVENTOS KAFKA</p><h2>Analítica en tiempo real</h2></div></div>
+          {analyticsError && <p className="muted">Métricas aún no disponibles: {analyticsError}</p>}
+          <div className="metrics-grid">
+            <article><small>Vistas de productos</small><strong>{analyticsMetrics?.['product.view'] ?? 0}</strong></article>
+            <article><small>Interacciones de carrito</small><strong>{analyticsMetrics?.['cart.add'] ?? 0}</strong></article>
+            <article><small>Productos visualizados</small><strong>{analyticsMetrics?.activeProducts ?? 0}</strong></article>
+          </div>
+          <h3>Productos más vistos</h3>
+          <div className="top-products">{(analyticsMetrics?.topProducts ?? []).map(p =>
+            <p key={p.sku}>{p.sku} · {p.views} visualizaciones</p>)}</div>
+          <h3>Recomendaciones para ti</h3>
+          {recommendations.length === 0 ? <p className="muted">Explora productos para generar recomendaciones personalizadas.</p> :
+            recommendations.map(item => <p key={item.sku}>{item.sku} · afinidad {item.score}</p>)}
+          <button type="button" className="button-outline" onClick={loadRecommendations}>Actualizar recomendaciones</button>
         </section>
         <section className="card account-section" id="cuenta"><div className="section-heading account-heading">
           <div><p className="eyebrow">IDENTIDAD Y SEGURIDAD</p><h2>Mi cuenta</h2></div><span className="security-tag">Sesión autenticada</span></div>

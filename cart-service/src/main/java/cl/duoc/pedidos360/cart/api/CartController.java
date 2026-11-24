@@ -11,6 +11,8 @@ import java.util.List;
 @RestController @RequestMapping("/api/cart")
 public class CartController {
     private final CartService service;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private cl.duoc.pedidos360.cart.service.InteractionPublisher interaction;
     private final CurrentUserService users;
     public CartController(CartService service, CurrentUserService users) { this.service = service; this.users = users; }
     @GetMapping public List<CartItemResponse> list(Authentication a, HttpServletRequest r) { return service.list(users.userId(a, r)); }
@@ -22,7 +24,9 @@ public class CartController {
     @PostMapping("/items") @ResponseStatus(HttpStatus.CREATED)
     public CartItemResponse add(@Valid @RequestBody AddCartItemRequest body, Authentication a, HttpServletRequest r,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
-        return service.add(users.userId(a, r), body, authorization);
+        CartItemResponse result=service.add(users.userId(a, r), body, authorization);
+        if(interaction!=null) interaction.publish("cart.add",users.userId(a,r),body.productCode(),"");
+        return result;
     }
     @DeleteMapping("/items/{id}") @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id, Authentication a, HttpServletRequest r) { service.delete(users.userId(a, r), id); }

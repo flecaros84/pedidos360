@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars (gitignored). Never commit real credentials.
+aws_region = "us-east-1"
+azure_tenant_id = "YOUR-ENTRA-TENANT-ID"
+azure_audience = "YOUR-AUDIENCE"
+frontend_allowed_origins = ["http://YOUR-FRONTEND-ORIGIN"]
+rabbitmq_admin_allowed_cidrs = ["YOUR-PUBLIC-IP/32"]
+# Required for lab resource provisioning. Sensitive: keep tfstate encrypted and private.
+rds_password = "REPLACE-WITH-A-STRONG-PRIVATE-PASSWORD"
+instance_profile_name = "LabInstanceProfile"
+# Adjust instance_types individually after memory / CPU load tests.
+# Optional: enabling requires LabRole permission to stop EC2/RDS and Lambda execution.
+enable_auto_stop = false
+# Default auto-stop: daily at 05:00 UTC (adjust for Chile DST).

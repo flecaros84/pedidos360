@@ -26,3 +26,19 @@ Thumbs.db
 # Archivo con claves
 claves.txt
 pedidos360-key.pem
+# Integration/reprovisioning secrets and runtime infrastructure state
+.env.generated/
+.env.master
+**/terraform.tfvars
+**/*.tfstate
+**/*.tfstate.*
+**/.terraform/
+**/.terraform.lock.hcl
+**/ws_routes.zip
+**/auto_stop.zip
+# Private master credentials used by lab scripts
+master.env
+**/master.env
+# Terraform saved plans may embed secrets
+**/*.tfplan
+**/tfplan
