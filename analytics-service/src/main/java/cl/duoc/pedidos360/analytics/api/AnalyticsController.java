@@ -22,9 +22,14 @@ public class AnalyticsController {
     var categories=db.query("SELECT category FROM analytics.product_views WHERE user_id=? AND category IS NOT NULL " +
           "GROUP BY category ORDER BY SUM(views) DESC LIMIT 1",(r,i)->r.getString(1),user);
     if(categories.isEmpty())return List.of();
-    return db.queryForList("SELECT product_sku AS sku,SUM(views) AS score FROM analytics.product_views " +
+    String preferredCategory=categories.get(0);
+    // Prefer unseen products, but fall back to category popularity if all were viewed.
+    var unseen=db.queryForList("SELECT product_sku AS sku,SUM(views) AS score FROM analytics.product_views " +
          "WHERE category=? AND product_sku NOT IN " +
          "(SELECT product_sku FROM analytics.product_views WHERE user_id=?) " +
-         "GROUP BY product_sku ORDER BY score DESC LIMIT 6",categories.get(0),user);
+         "GROUP BY product_sku ORDER BY score DESC, product_sku LIMIT 6",preferredCategory,user);
+    if(!unseen.isEmpty())return unseen;
+    return db.queryForList("SELECT product_sku AS sku,SUM(views) AS score FROM analytics.product_views " +
+         "WHERE category=? GROUP BY product_sku ORDER BY score DESC, product_sku LIMIT 6",preferredCategory);
  }
 }
