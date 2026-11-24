@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euxo pipefail
-dnf install -y docker curl jq
+# Amazon Linux 2023 ships with curl-minimal; installing curl conflicts with it.
+dnf install -y docker jq
 systemctl enable --now docker
 mkdir -p /opt/pedidos360
 # Install a templated service only after runtime environment secrets are supplied.
