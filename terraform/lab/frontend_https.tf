@@ -40,6 +40,10 @@ resource "aws_cloudfront_distribution" "frontend" {
     response_code = 200
     response_page_path = "/index.html"
   }
-  restrictions { geo_restriction { restriction_type = "none" } }
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
   viewer_certificate { cloudfront_default_certificate = true }
 }
