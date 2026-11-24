@@ -54,8 +54,21 @@ services:
     image: axllent/mailpit:v1.21
     ports:
     - 127.0.0.1:8025:8025
+  dynamodb-volume-init:
+    image: alpine:3.20
+    user: "0:0"
+    command:
+      - chown
+      - -R
+      - "1000:1000"
+      - /data
+    volumes:
+      - dynamodata:/data
   dynamodb:
     image: amazon/dynamodb-local:2.6.1
+    depends_on:
+      dynamodb-volume-init:
+        condition: service_completed_successfully
     command:
     - -jar
     - DynamoDBLocal.jar
@@ -77,7 +90,7 @@ services:
       - |
         # Wait for DynamoDB Local to accept requests.
         retries=0
-        until aws dynamodb list-tables --endpoint-url http://dynamodb:8000 --region us-east-1 >/dev/null 2>&1; do
+        until aws dynamodb list-tables --endpoint-url http://dynamodb:8000 --region us-east-1 --cli-connect-timeout 3 --cli-read-timeout 3 >/dev/null 2>&1; do
           retries=$$((retries + 1))
           if [ "$$retries" -ge 30 ]; then
             echo "DynamoDB Local did not become ready" >&2
@@ -89,7 +102,7 @@ services:
           key=eventId
           if [ "$$table" = "pedidos360-ws-tickets" ]; then key=ticketId; fi
           if [ "$$table" = "pedidos360-ws-connections" ]; then key=connectionId; fi
-          if ! aws dynamodb describe-table --table-name "$$table" --endpoint-url http://dynamodb:8000 --region us-east-1 >/dev/null 2>&1; then
+          if ! aws dynamodb describe-table --table-name "$table" --endpoint-url http://dynamodb:8000 --region us-east-1 --cli-connect-timeout 3 --cli-read-timeout 3 >/dev/null 2>&1; then
             aws dynamodb create-table \
               --table-name "$$table" \
               --attribute-definitions "AttributeName=$$key,AttributeType=S" \
