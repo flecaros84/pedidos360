@@ -12,7 +12,9 @@ if ($contents.Length -gt 4096) { throw 'SSM Standard SecureString limit exceeded
 $tmp = New-TemporaryFile
 try {
   @{ Name = "/$Prefix/lab/$Name/env"; Type = 'SecureString'; Value = $contents; Overwrite = $true } |
-    ConvertTo-Json -Compress | Set-Content -Path $tmp -NoNewline
+    ConvertTo-Json -Compress | ForEach-Object {
+      [System.IO.File]::WriteAllText($tmp.FullName, $_, [System.Text.UTF8Encoding]::new($false))
+    }
   aws ssm put-parameter --cli-input-json "file://$($tmp.FullName)" --output json > $null
   if ($LASTEXITCODE -ne 0) { throw 'SSM SecureString upload failed.' }
   Write-Host "Stored encrypted configuration for $Name"
