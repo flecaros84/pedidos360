@@ -9,7 +9,7 @@ Write-Host 'Stopping messaging EC2 and NAT ...'
 Invoke-InstanceAction stop @("$Prefix-rabbitmq", "$Prefix-kafka", "$Prefix-nat")
 $db = aws rds describe-db-instances --db-instance-identifier "$Prefix-postgres" --query 'DBInstances[0].DBInstanceStatus' --output text 2>$null
 if ($LASTEXITCODE -eq 0 -and $db -eq 'available') {
-    aws rds stop-db-instance --db-instance-identifier "$Prefix-postgres" --output none
+    aws rds stop-db-instance --db-instance-identifier "$Prefix-postgres" --output json > $null
     if ($LASTEXITCODE -ne 0) { throw 'RDS stop failed.' }
 }
 Write-Host 'EC2 stop requested. EBS, ALB, IP and RDS storage may continue to accrue charges.'

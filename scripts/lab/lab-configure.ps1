@@ -13,7 +13,7 @@ $tmp = New-TemporaryFile
 try {
   @{ Name = "/$Prefix/lab/$Name/env"; Type = 'SecureString'; Value = $contents; Overwrite = $true } |
     ConvertTo-Json -Compress | Set-Content -Path $tmp -NoNewline
-  aws ssm put-parameter --cli-input-json "file://$($tmp.FullName)" --output none
+  aws ssm put-parameter --cli-input-json "file://$($tmp.FullName)" --output json > $null
   if ($LASTEXITCODE -ne 0) { throw 'SSM SecureString upload failed.' }
   Write-Host "Stored encrypted configuration for $Name"
 } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }

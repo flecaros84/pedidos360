@@ -33,11 +33,11 @@ function Invoke-InstanceAction([string]$Action,[string[]]$Names) {
     if ($toChange.Count -eq 0) { return }
     $ids = @($toChange | ForEach-Object { $_.Id })
     if ($Action -eq 'start') {
-        aws ec2 start-instances --instance-ids $ids --output none
+        aws ec2 start-instances --instance-ids $ids --output json > $null
         if ($LASTEXITCODE -ne 0) { throw "EC2 start failed: $($ids -join ', ')" }
         aws ec2 wait instance-running --instance-ids $ids
     } else {
-        aws ec2 stop-instances --instance-ids $ids --output none
+        aws ec2 stop-instances --instance-ids $ids --output json > $null
         if ($LASTEXITCODE -ne 0) { throw "EC2 stop failed: $($ids -join ', ')" }
         aws ec2 wait instance-stopped --instance-ids $ids
     }

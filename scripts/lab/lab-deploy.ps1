@@ -11,7 +11,7 @@ foreach ($server in $instances) {
     try {
       @{ DocumentName = 'AWS-RunShellScript'; InstanceIds = @($server.Id); Parameters = @{commands = @($script)} } |
         ConvertTo-Json -Depth 5 | Set-Content $tmp
-      aws ssm send-command --cli-input-json "file://$($tmp.FullName)" --output none
+      aws ssm send-command --cli-input-json "file://$($tmp.FullName)" --output json > $null
       if ($LASTEXITCODE -ne 0) { throw "SSM deploy failed for $service" }
       Write-Host "SSM deployment queued: $service"
     } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
