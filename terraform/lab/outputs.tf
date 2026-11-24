@@ -15,8 +15,8 @@ output "ws_tickets_table" { value = var.enable_websocket ? aws_dynamodb_table.ws
 output "ws_connections_table" { value = var.enable_websocket ? aws_dynamodb_table.ws_connections[0].name : null }
 output "ws_management_endpoint" { value = var.enable_websocket ? "https://${aws_apigatewayv2_api.ws[0].id}.execute-api.${var.aws_region}.amazonaws.com/lab" : null }
 output "ws_public_url" { value = var.enable_websocket ? "wss://${aws_apigatewayv2_api.ws[0].id}.execute-api.${var.aws_region}.amazonaws.com/lab" : null }
-output "backend_instances" { value = { for name, server in aws_instance.backend : name => server.id } }
-output "backend_private_ips" { value = { for name, server in aws_instance.backend : name => server.private_ip } }
+output "backend_instances" { value = { for name, host in local.service_hosts : name => aws_instance.backend[host].id } }
+output "backend_private_ips" { value = { for name, host in local.service_hosts : name => aws_instance.backend[host].private_ip } }
 output "all_instance_ids" {
   value = concat([for instance in aws_instance.backend : instance.id],
     [aws_instance.frontend.id,aws_instance.rabbit.id,aws_instance.kafka.id,aws_instance.nat.id])

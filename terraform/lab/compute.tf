@@ -10,13 +10,32 @@ locals {
     analytics = 8088
     dispatch = 8089
   }
+  # Five backend hosts share nine Java services to respect Vocareum's EC2 concurrency limit.
+  backend_host_ports = {
+    cart     = 8082
+    products = 8083
+    audit    = 8087
+    analytics = 8088
+    dispatch = 8089
+  }
+  service_hosts = {
+    auth          = "cart"
+    cart          = "cart"
+    products      = "products"
+    orders        = "products"
+    notifications = "audit"
+    audit         = "audit"
+    payment       = "dispatch"
+    dispatch      = "dispatch"
+    analytics     = "analytics"
+  }
   backend_images = {
     for name, port in local.backend_ports : name =>
     "ghcr.io/${var.image_owner}/pedidos360-${name}:${var.image_tag}"
   }
 }
 resource "aws_instance" "backend" {
-  for_each = local.backend_ports
+  for_each = local.backend_host_ports
   ami = data.aws_ami.al2023.id
   instance_type = var.instance_types[each.key]
   subnet_id = aws_subnet.private[0].id

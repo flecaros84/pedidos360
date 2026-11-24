@@ -46,7 +46,7 @@ resource "aws_lb_target_group" "backend" {
 resource "aws_lb_target_group_attachment" "backend" {
   for_each = var.enable_api ? local.backend_ports : {}
   target_group_arn = aws_lb_target_group.backend[each.key].arn
-  target_id = aws_instance.backend[each.key].id
+  target_id = aws_instance.backend[local.service_hosts[each.key]].id
   port = each.value
 }
 resource "aws_lb_listener" "http" {
