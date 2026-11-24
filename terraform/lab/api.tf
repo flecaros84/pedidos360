@@ -35,20 +35,32 @@ resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.backend[0].arn
   port = "80"
   protocol = "HTTP"
-  default_action { type = "fixed-response", fixed_response {
+  default_action {
+    type = "fixed-response"
+    fixed_response {
     content_type = "text/plain"
     status_code = "404"
     message_body = "Not found"
-  } }
+    }
+  }
 }
 resource "aws_lb_listener_rule" "routes" {
   for_each = var.enable_api ? local.backend_ports : {}
   listener_arn = aws_lb_listener.http[0].arn
   priority = index(keys(local.backend_ports), each.key) + 100
-  action { type = "forward", target_group_arn = aws_lb_target_group.backend[each.key].arn }
-  condition { path_pattern { values = each.key == "payment" ? ["/api/payments", "/api/payments/*"] :
-    each.key == "analytics" ? ["/api/analytics", "/api/analytics/*"] :
-    ["/api/${each.key}", "/api/${each.key}/*"] } }
+  action {
+    type = "forward"
+    target_group_arn = aws_lb_target_group.backend[each.key].arn
+  }
+  condition {
+    path_pattern {
+      values = (
+        each.key == "payment" ? ["/api/payments", "/api/payments/*"] :
+        each.key == "analytics" ? ["/api/analytics", "/api/analytics/*"] :
+        ["/api/${each.key}", "/api/${each.key}/*"]
+      )
+    }
+  }
 }
 resource "aws_apigatewayv2_vpc_link" "backend" {
   count = var.enable_api ? 1 : 0
