@@ -29,20 +29,32 @@ resource "aws_dynamodb_table" "events" {
   name = "${var.name}-events"
   billing_mode = "PAY_PER_REQUEST"
   hash_key = "eventId"
-  attribute { name = "eventId", type = "S" }
+  attribute {
+    name = "eventId"
+    type = "S"
+  }
 }
 resource "aws_dynamodb_table" "ws_connections" {
   count = var.enable_websocket ? 1 : 0
   name = "${var.name}-ws-connections"
   billing_mode = "PAY_PER_REQUEST"
   hash_key = "connectionId"
-  attribute { name = "connectionId", type = "S" }
+  attribute {
+    name = "connectionId"
+    type = "S"
+  }
 }
 resource "aws_dynamodb_table" "ws_tickets" {
   count = var.enable_websocket ? 1 : 0
   name = "${var.name}-ws-tickets"
   billing_mode = "PAY_PER_REQUEST"
   hash_key = "ticketId"
-  attribute { name = "ticketId", type = "S" }
-  ttl { attribute_name = "expiresAt", enabled = true }
+  attribute {
+    name = "ticketId"
+    type = "S"
+  }
+  ttl {
+    attribute_name = "expiresAt"
+    enabled = true
+  }
 }
