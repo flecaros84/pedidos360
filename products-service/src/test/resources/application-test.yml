@@ -12,3 +12,9 @@ app:
     mode: local
   catalog:
     seed-demo: true
+
+# Embedded tests do not require the external RabbitMQ broker.
+management:
+  health:
+    rabbit:
+      enabled: false
