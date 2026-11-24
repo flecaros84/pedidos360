@@ -18,7 +18,7 @@ function Get-LabInstances {
                 Id = $instance.InstanceId
                 State = $instance.State.Name
                 Name = if ($name.Count -gt 0) { $name[0] } else { '' }
-                PublicIp = $instance.PublicIpAddress
+                PublicIp = if ($null -ne $instance.PSObject.Properties['PublicIpAddress']) { $instance.PublicIpAddress } else { $null }
             }
         }
     }
