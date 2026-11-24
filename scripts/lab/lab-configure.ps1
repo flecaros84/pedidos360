@@ -6,8 +6,12 @@ param([Parameter(Mandatory=$true)][string]$Name,
 Assert-AwsSession
 if (-not (Test-Path $File)) { throw "Missing env file: $File" }
 if ($Name -notmatch '^[a-z][a-z0-9-]+$') { throw 'Invalid service name.' }
-$contents = Get-Content $File -Raw
-if ($contents.Length -gt 4096) { throw 'SSM Standard SecureString limit exceeded (4 KB). Split configuration.' }
+# Read a plain .NET string; Get-Content -Raw can attach PowerShell provider metadata
+# which ConvertTo-Json serializes into an object instead of the required string.
+$contents = [System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $File).Path, [System.Text.Encoding]::UTF8)
+# Normalize Windows CRLF for Linux docker --env-file consumers.
+$contents = $contents.Replace("`r`n", "`n")
+if ([System.Text.Encoding]::UTF8.GetByteCount($contents) -gt 4096) { throw 'SSM Standard SecureString limit exceeded (4 KB). Split configuration.' }
 # Secrets passed using a local value file to avoid exposing values on the process command line.
 $tmp = New-TemporaryFile
 try {
