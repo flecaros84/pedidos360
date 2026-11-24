@@ -29,7 +29,10 @@ resource "aws_instance" "backend" {
     service_port = each.value
     docker_image = local.backend_images[each.key]
   })
-  root_block_device { volume_size = var.root_volume_gib, volume_type = "gp3" }
+  root_block_device {
+    volume_size = var.root_volume_gib
+    volume_type = "gp3"
+  }
   tags = { Name = "${var.name}-${each.key}", LabControl = "true", Role = "backend" }
   depends_on = [aws_route.private_default]
 }
@@ -46,7 +49,10 @@ resource "aws_instance" "frontend" {
     service_port = 80
     docker_image = "ghcr.io/${var.image_owner}/pedidos360-frontend:${var.image_tag}"
   })
-  root_block_device { volume_size = var.root_volume_gib, volume_type = "gp3" }
+  root_block_device {
+    volume_size = var.root_volume_gib
+    volume_type = "gp3"
+  }
   tags = { Name = "${var.name}-frontend", LabControl = "true" }
 }
 resource "aws_instance" "rabbit" {
@@ -62,7 +68,10 @@ resource "aws_instance" "rabbit" {
     service_port = 15672
     docker_image = "rabbitmq:3.13-management-alpine"
   })
-  root_block_device { volume_size = var.broker_volume_gib, volume_type = "gp3" }
+  root_block_device {
+    volume_size = var.broker_volume_gib
+    volume_type = "gp3"
+  }
   tags = { Name = "${var.name}-rabbitmq", LabControl = "true" }
 }
 resource "aws_instance" "kafka" {
@@ -78,7 +87,10 @@ resource "aws_instance" "kafka" {
     service_port = 9092
     docker_image = "apache/kafka:3.9.1"
   })
-  root_block_device { volume_size = var.broker_volume_gib, volume_type = "gp3" }
+  root_block_device {
+    volume_size = var.broker_volume_gib
+    volume_type = "gp3"
+  }
   tags = { Name = "${var.name}-kafka", LabControl = "true" }
   depends_on = [aws_route.private_default]
 }
