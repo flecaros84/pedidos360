@@ -62,6 +62,6 @@ public class CartDataMigration implements ApplicationRunner {
                 + "ON cart_item(user_id, product_code)");
         // Make the paid-order settlement idempotent across retries and restarts.
         jdbc.execute("CREATE TABLE IF NOT EXISTS cart_paid_orders ("
-                + "order_id UUID PRIMARY KEY, processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+                + "order_id UUID PRIMARY KEY, processed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW())");
     }
 }
