@@ -165,6 +165,18 @@ resource "aws_security_group" "alb" {
     to_port = 80
     cidr_blocks = [var.vpc_cidr]
   }
+  # Keep ALB ingress under one Terraform resource. The separate rule resource
+  # was removed by an earlier apply because inline rules are authoritative.
+  dynamic "ingress" {
+    for_each = var.enable_api && !var.enable_cloudfront ? [1] : []
+    content {
+      protocol = "tcp"
+      from_port = 8080
+      to_port = 8080
+      security_groups = [aws_security_group.vpc_link.id]
+      description = "Frontend-only HTTP listener from API Gateway VPC Link"
+    }
+  }
   egress {
     protocol = "-1"
     from_port = 0
