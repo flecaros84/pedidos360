@@ -235,16 +235,6 @@ resource "aws_apigatewayv2_stage" "http" {
 
 # A separate frontend HTTPS origin reuses the existing ALB/VPC Link.
 # The dedicated listener forwards ONLY to Nginx, never the JWT-protected API routes.
-resource "aws_security_group_rule" "frontend_listener_from_vpc_link" {
-  count                    = var.enable_api && !var.enable_cloudfront ? 1 : 0
-  type                     = "ingress"
-  security_group_id        = aws_security_group.alb.id
-  source_security_group_id = aws_security_group.vpc_link.id
-  protocol                 = "tcp"
-  from_port                = 8080
-  to_port                  = 8080
-}
-
 resource "aws_lb_listener" "frontend_only" {
   count             = var.enable_api && !var.enable_cloudfront ? 1 : 0
   load_balancer_arn = aws_lb.backend[0].arn
