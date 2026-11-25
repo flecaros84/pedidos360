@@ -36,17 +36,22 @@ $ports = @{
     analytics = 8088
     dispatch = 8089
 }
-$services = @('rabbitmq','kafka','products','cart','auth','orders',
-              'notifications','payment','audit','analytics','dispatch','frontend')
-if ($Services.Count -gt 0) {
-    foreach ($name in $Services) {
-        if ($name -notin $services) { throw "Unknown service: $name" }
+# PowerShell variable names are case-insensitive: never reuse $Services as $services.
+$availableServices = @('rabbitmq','kafka','products','cart','auth','orders',
+                       'notifications','payment','audit','analytics','dispatch','frontend')
+$requestedServices = @($Services)
+if ($requestedServices.Count -gt 0) {
+    foreach ($name in $requestedServices) {
+        if ($name -notin $availableServices) { throw "Unknown service: $name" }
     }
-    $services = @($services | Where-Object { $_ -in $Services })
+    $deployServices = @($availableServices | Where-Object { $_ -in $requestedServices })
+} else {
+    $deployServices = @($availableServices)
 }
+Write-Host "Deploy selection: $($deployServices -join ', ')" -ForegroundColor Cyan
 $instances = @(Get-LabInstances | Where-Object { $_.State -eq 'running' })
 
-foreach ($service in $services) {
+foreach ($service in $deployServices) {
     $hostName = "$Prefix-$($hosts[$service])"
     $server = $instances | Where-Object { $_.Name -eq $hostName } | Select-Object -First 1
     if (-not $server) { throw "No running EC2 host '$hostName' for $service." }
