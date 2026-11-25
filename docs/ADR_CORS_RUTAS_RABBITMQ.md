@@ -39,3 +39,11 @@
 - Tomar capturas/evidencias separadas de rutas frontend/backend, CORS y panel RabbitMQ.
 
 **Observación:** esto es una decisión de diseño. No significa que los cambios Terraform, Nginx o Spring ya estén implementados ni probados.
+
+## Actualización de implementación (2026-11-24)
+
+Se prepara una segunda HTTP API para el frontend HTTPS, con un listener ALB exclusivo en puerto 8080 que solo reenvía a Nginx. El backend conserva el API Gateway anterior y su JWT/Scopes. Durante la transición se conservan las rutas antiguas del frontend para evitar interrumpir el redirect de Entra ID; se retirarán después de completar la migración.
+
+El backend usa orígenes CORS explícitos, OPTIONS sin JWT, métodos y encabezados configurados en la HTTP API. La URL SPA se obtiene desde `frontend_url` de Terraform y se registra en Entra ID. Las variables de entorno de frontend/backend se regeneran y actualizan mediante SSM, sin incluir secretos en Git.
+
+En Mi cuenta se ofrece un visor local de JWT: la firma NO se valida al decodificar, pero el acceso al backend está protegido por verificaciones de JWT en API Gateway y Spring Security. Orders limpia el carrito únicamente al confirmarse PAID, con reintentos e idempotencia en Cart.

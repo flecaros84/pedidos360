@@ -123,9 +123,14 @@ resource "aws_apigatewayv2_api" "http" {
   name = "${var.name}-api"
   protocol_type = "HTTP"
   cors_configuration {
-    allow_origins = concat(var.frontend_allowed_origins, var.enable_cloudfront ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}"] : [])
+    allow_origins = distinct(concat(
+      var.frontend_allowed_origins,
+      var.enable_cloudfront ? ["https://${aws_cloudfront_distribution.frontend[0].domain_name}"] : (
+        var.enable_api ? [aws_apigatewayv2_api.frontend_only[0].api_endpoint] : []
+      )
+    ))
     allow_methods = ["GET","POST","PATCH","PUT","DELETE","OPTIONS"]
-    allow_headers = ["authorization","content-type","idempotency-key","x-demo-user"]
+    allow_headers = ["authorization","content-type","idempotency-key","x-demo-user","x-demo-name","x-amz-date","x-api-key"]
     max_age = 300
   }
 }
@@ -194,5 +199,68 @@ resource "aws_apigatewayv2_stage" "http" {
   count = var.enable_api ? 1 : 0
   api_id = aws_apigatewayv2_api.http[0].id
   name = "$default"
+  auto_deploy = true
+}
+
+# A separate frontend HTTPS origin reuses the existing ALB/VPC Link.
+# The dedicated listener forwards ONLY to Nginx, never the JWT-protected API routes.
+resource "aws_security_group_rule" "frontend_listener_from_vpc_link" {
+  count                    = var.enable_api && !var.enable_cloudfront ? 1 : 0
+  type                     = "ingress"
+  security_group_id        = aws_security_group.alb.id
+  source_security_group_id = aws_security_group.vpc_link.id
+  protocol                 = "tcp"
+  from_port                = 8080
+  to_port                  = 8080
+}
+
+resource "aws_lb_listener" "frontend_only" {
+  count             = var.enable_api && !var.enable_cloudfront ? 1 : 0
+  load_balancer_arn = aws_lb.backend[0].arn
+  port              = 8080
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend[0].arn
+  }
+}
+
+resource "aws_apigatewayv2_api" "frontend_only" {
+  count         = var.enable_api && !var.enable_cloudfront ? 1 : 0
+  name          = "${var.name}-frontend-https"
+  protocol_type = "HTTP"
+}
+
+resource "aws_apigatewayv2_integration" "frontend_only" {
+  count                  = var.enable_api && !var.enable_cloudfront ? 1 : 0
+  api_id                 = aws_apigatewayv2_api.frontend_only[0].id
+  integration_type       = "HTTP_PROXY"
+  integration_uri        = aws_lb_listener.frontend_only[0].arn
+  integration_method     = "ANY"
+  connection_type        = "VPC_LINK"
+  connection_id          = aws_apigatewayv2_vpc_link.backend[0].id
+  payload_format_version = "1.0"
+}
+
+resource "aws_apigatewayv2_route" "frontend_only_root" {
+  count              = var.enable_api && !var.enable_cloudfront ? 1 : 0
+  api_id             = aws_apigatewayv2_api.frontend_only[0].id
+  route_key          = "GET /"
+  authorization_type = "NONE"
+  target             = "integrations/${aws_apigatewayv2_integration.frontend_only[0].id}"
+}
+
+resource "aws_apigatewayv2_route" "frontend_only_assets" {
+  count              = var.enable_api && !var.enable_cloudfront ? 1 : 0
+  api_id             = aws_apigatewayv2_api.frontend_only[0].id
+  route_key          = "ANY /{proxy+}"
+  authorization_type = "NONE"
+  target             = "integrations/${aws_apigatewayv2_integration.frontend_only[0].id}"
+}
+
+resource "aws_apigatewayv2_stage" "frontend_only" {
+  count       = var.enable_api && !var.enable_cloudfront ? 1 : 0
+  api_id      = aws_apigatewayv2_api.frontend_only[0].id
+  name        = "$default"
   auto_deploy = true
 }

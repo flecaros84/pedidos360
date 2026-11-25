@@ -1,6 +1,6 @@
 output "frontend_url" {
   value = var.enable_cloudfront ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}/" : (
-    var.enable_api ? "${aws_apigatewayv2_api.http[0].api_endpoint}/" : "http://${aws_instance.frontend.public_ip}/"
+    var.enable_api ? "${aws_apigatewayv2_api.frontend_only[0].api_endpoint}/" : "http://${aws_instance.frontend.public_ip}/"
   )
 }
 output "frontend_instance_id" { value = aws_instance.frontend.id }
@@ -21,3 +21,4 @@ output "all_instance_ids" {
   value = concat([for instance in aws_instance.backend : instance.id],
     [aws_instance.frontend.id,aws_instance.rabbit.id,aws_instance.kafka.id,aws_instance.nat.id])
 }
+output "frontend_api_id" { value = var.enable_api && !var.enable_cloudfront ? aws_apigatewayv2_api.frontend_only[0].id : null }
