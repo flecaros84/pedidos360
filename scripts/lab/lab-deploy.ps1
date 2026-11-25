@@ -55,6 +55,14 @@ foreach ($service in $services) {
             'sleep 3',
             "docker inspect -f '{{.State.Running}}' pedidos360-$service | grep -qx true"
         )
+        if ($service -eq 'kafka') {
+            # The official Kafka container runs as UID/GID 1000 and needs write access.
+            $commands = @(
+                'set -e',
+                'install -d -m 755 /opt/pedidos360/kafka-data',
+                'chown -R 1000:1000 /opt/pedidos360/kafka-data'
+            ) + $commands
+        }
     } else {
         # Secondary service runs as its own named Docker container on the shared host.
         $envFile = "/opt/pedidos360/$service.env"

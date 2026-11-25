@@ -39,6 +39,8 @@ if [ "${service_name}" = rabbitmq ]; then
 fi
 if [ "${service_name}" = kafka ]; then
   mkdir -p /opt/pedidos360/kafka-data
+  # The official Apache Kafka container runs as UID/GID 1000.
+  chown -R 1000:1000 /opt/pedidos360/kafka-data
   EXTRA="-v /opt/pedidos360/kafka-data:/var/lib/kafka/data"
 fi
 /usr/bin/docker pull "$IMAGE"
