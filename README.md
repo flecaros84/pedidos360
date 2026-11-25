@@ -1,5 +1,22 @@
 # Pedidos360 / Farmacia Simple — Proyecto Cloud Native
 
+> **Actualización: 24 de noviembre de 2026**  
+> **AWS Academy (laboratorio):** integración 1.0.0-rc.1 probada con frontend HTTPS, Microsoft Entra ID, carrito, pagos simulados, RabbitMQ, Kafka y correo SMTP.  
+> **Código nuevo 1.0.0-rc.2:** implementado en `feature/integracion-final`, pendiente de nueva validación y despliegue AWS.  
+> **Guía:** [CORS, JWT académico y cierre del carrito al pagar](docs/LAB_CORS_JWT_PAGOS.md).  
+> **Importante:** usar `terraform plan` y un despliegue controlado; no aplicar cambios previos de `user_data` que podrían reemplazar EC2.
+
+## Integración 1.0.0-rc.2
+
+- **JWT visible en la cuenta:** inspección del header y claims; token completo solo bajo demanda y sin persistencia local adicional.
+- **Pago y carrito:** refresco automático del estado del pedido y reconciliador seguro/idempotente entre Orders y Cart después de `PAID`.
+- **CORS con orígenes separados:** segunda HTTP API HTTPS para React, reutilizando VPC Link y ALB con listener exclusivo para el frontend; API backend protegida por JWT.
+- **CI/CD:** GitHub Actions genera imágenes por SHA inmutable para desplegar de forma reproducible; no usar el tag móvil `integration` durante una migración concurrente.
+
+---
+
+## Historial de versiones y arquitectura anterior
+
 > **Estado documentado:** 14 de octubre de 2026  
 > **Versión AWS validada por el usuario:** `0.4.0-rc.1`. **Nueva entrega para pruebas locales:** `0.5.0-rc.1` (Orders + RabbitMQ + Notifications; NO desplegada).  
 > **Región AWS:** `us-east-1`  
