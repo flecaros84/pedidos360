@@ -33,6 +33,8 @@ $out = Join-Path (Get-Location) '.env.generated'
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 $api = $tf.api_base_url.value.TrimEnd('/')
 $front = $tf.frontend_url.value.TrimEnd('/')
+# During the Entra ID migration, preserve the legacy same-origin frontend.
+$allowedFrontendOrigins = if ($front -eq $api) { $front } else { "$front,$api" }
 $ip = $tf.backend_private_ips.value
 $postgresHost = $tf.db_endpoint.value
 $rabbitPrivate = $tf.rabbitmq_private_ip.value
@@ -47,7 +49,7 @@ foreach ($svc in $services) {
   $lines.Add("AZURE_CLIENT_ID=$client")
   $lines.Add("AZURE_ISSUER_URI=$issuer")
   $lines.Add("AZURE_AUDIENCE=$audience")
-  $lines.Add("APP_CORS_ALLOWED_ORIGINS=$front")
+  $lines.Add("APP_CORS_ALLOWED_ORIGINS=$allowedFrontendOrigins")
   if ($svc -ne 'auth') {
     $lines.Add("DATABASE_URL=jdbc:postgresql://$postgresHost/pedidos360")
     $lines.Add('DATABASE_USERNAME=pedidos360')
