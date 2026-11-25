@@ -22,3 +22,27 @@ Código preparado en `feature/integracion-final`, **no aplicado automáticamente
 
 ## Seguridad
 Los secrets siguen fuera de Git/Terraform en SSM SecureString. Nunca usar un JWT completo en capturas públicas. No exponer `/internal/cart/paid` en un listener público ni desactivar autenticación del API. Para pagos posteriores, el carrito se ajusta solo por las cantidades efectivamente adquiridas.
+
+## Corrección de preflight (24-11-2026)
+
+Comprobación real: la HTTP API incluía el nuevo origen permitido y agregaba `Access-Control-Allow-Origin`, pero devolvía `403 Invalid CORS request`. La ruta explícita `OPTIONS /api/{proxy+}` sin JWT reenviaba el preflight al ALB y Spring Security, cuyo `APP_CORS_ALLOWED_ORIGINS` todavía conservaba los orígenes antiguos.
+
+Solución: conservar `OPTIONS /api/{proxy+}` sin JWT, pero agregar `aws_lb_listener_rule.cors_preflight` con prioridad 10, método `OPTIONS` y ruta `/api/*`, que responde `204` directamente. Las rutas funcionales GET/POST y demás siguen redirigiéndose a los microservicios y exigiendo JWT según corresponda. HTTP API aplica sus encabezados CORS también al 204. No se requiere reiniciar las EC2 para esta corrección.
+
+Plan de migración seguro:
+
+```powershell
+terraform -chdir=terraform/lab plan "-target=aws_lb_listener_rule.cors_preflight" "-out=preflight.tfplan"
+# Validate: 1 to add, 0 to change, 0 to destroy.
+terraform -chdir=terraform/lab apply preflight.tfplan
+```
+
+Prueba:
+
+```powershell
+$front="https://rqe2am6670.execute-api.us-east-1.amazonaws.com"
+$api="https://46lmamgixk.execute-api.us-east-1.amazonaws.com"
+curl.exe -i -X OPTIONS "$api/api/cart/items" -H "Origin: $front" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: authorization,content-type"
+```
+
+Esperado: HTTP 204, `access-control-allow-origin` igual a `$front`, métodos y encabezados permitidos. Un origen no autorizado no debe recibir `access-control-allow-origin`; el ALB devuelve 204 a OPTIONS independientemente del origen, pero la política CORS de API Gateway controla qué navegador puede proceder. Validar además JWT ausente y JWT legítimo en peticiones reales.
