@@ -5,6 +5,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import java.time.Instant;
+import java.sql.Timestamp;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +16,7 @@ import java.util.UUID;
 @Service
 public class PaidOrderCleanup {
     public record Line(String sku, int quantity) {}
-    public record Request(UUID orderId, String userId, List<Line> items) {}
+    public record Request(UUID orderId, String userId, Instant createdAt, List<Line> items) {}
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
@@ -26,7 +28,7 @@ public class PaidOrderCleanup {
 
     public void apply(Request request) {
         if (request == null || request.orderId() == null || request.userId() == null
-                || request.userId().isBlank() || request.items() == null || request.items().isEmpty()) {
+                || request.userId().isBlank() || request.createdAt() == null || request.items() == null || request.items().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid paid-order cleanup");
         }
         Map<String, Integer> quantities = new LinkedHashMap<>();
@@ -51,10 +53,10 @@ public class PaidOrderCleanup {
                 String sku = entry.getKey();
                 int quantity = entry.getValue();
                 // Keep additional quantities that were not part of the paid quote.
-                jdbc.update("DELETE FROM cart_item WHERE user_id=? AND product_code=? AND quantity<=?",
-                        request.userId(), sku, quantity);
-                jdbc.update("UPDATE cart_item SET quantity=quantity-? WHERE user_id=? AND product_code=? AND quantity>?",
-                        quantity, request.userId(), sku, quantity);
+                jdbc.update("DELETE FROM cart_item WHERE user_id=? AND product_code=? AND quantity<=? AND created_at<=?",
+                        request.userId(), sku, quantity, Timestamp.from(request.createdAt()));
+                jdbc.update("UPDATE cart_item SET quantity=quantity-? WHERE user_id=? AND product_code=? AND quantity>? AND created_at<=?",
+                        quantity, request.userId(), sku, quantity, Timestamp.from(request.createdAt()));
             }
         });
     }

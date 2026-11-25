@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import java.time.Instant;
 import java.util.*;
 
 /** Retries cart cleanup for PAID orders without holding a DB transaction during network calls. */
@@ -21,7 +22,7 @@ public class PaidCartReconciler {
     private final RestClient cart;
     private final String token;
 
-    record PaidOrder(UUID id, String userId, String quoteJson) {}
+    record PaidOrder(UUID id, String userId, Instant createdAt, String quoteJson) {}
 
     public PaidCartReconciler(JdbcTemplate jdbc, ObjectMapper json,
             @Value("${app.cart.base-url}") String cartUrl,
@@ -37,12 +38,13 @@ public class PaidCartReconciler {
         if (token.isBlank()) return;
         try {
             List<PaidOrder> pending = jdbc.query(
-                "SELECT id,user_id,quote_json FROM orders.customer_orders o "
+                "SELECT id,user_id,created_at,quote_json FROM orders.customer_orders o "
                 + "WHERE status='PAID' AND NOT EXISTS "
                 + "(SELECT 1 FROM orders.cart_cleared c WHERE c.order_id=o.id) "
                 + "ORDER BY created_at LIMIT 25",
                 (rs, i) -> new PaidOrder(rs.getObject("id", UUID.class),
-                        rs.getString("user_id"), rs.getString("quote_json")));
+                        rs.getString("user_id"), rs.getTimestamp("created_at").toInstant(),
+                        rs.getString("quote_json")));
             for (PaidOrder order : pending) {
                 try {
                     JsonNode shipments = json.readTree(order.quoteJson()).path("shipments");
@@ -59,7 +61,7 @@ public class PaidCartReconciler {
                     cart.post().uri("/internal/cart/paid")
                         .header("X-Service-Token", token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .body(Map.of("orderId", order.id().toString(), "userId", order.userId(), "items", lines))
+                        .body(Map.of("orderId", order.id().toString(), "userId", order.userId(), "createdAt", order.createdAt().toString(), "items", lines))
                         .retrieve().toBodilessEntity();
                     jdbc.update("INSERT INTO orders.cart_cleared(order_id) VALUES (?) ON CONFLICT DO NOTHING", order.id());
                 } catch (Exception error) {
