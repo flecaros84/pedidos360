@@ -188,13 +188,9 @@ resource "aws_apigatewayv2_route" "webpay_return" {
   target = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
   authorization_type = "NONE"
 }
-resource "aws_apigatewayv2_route" "preflight" {
-  count = var.enable_api ? 1 : 0
-  api_id = aws_apigatewayv2_api.http[0].id
-  route_key = "OPTIONS /api/{proxy+}"
-  target = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
-  authorization_type = "NONE"
-}
+# HTTP API CORS responds to OPTIONS preflight automatically.
+# Do not add an OPTIONS /api/{proxy+} route forwarding to Spring:
+# a backend with an older allowed-origin list would otherwise reject preflight.
 resource "aws_apigatewayv2_stage" "http" {
   count = var.enable_api ? 1 : 0
   api_id = aws_apigatewayv2_api.http[0].id
