@@ -231,3 +231,16 @@ h2 { margin: 0; font-size: 1.85rem; line-height: 1.2; }
 .metrics-grid article { background: #f0f6f1; border-radius: 12px; padding: 1rem; display: flex; flex-direction: column; }
 .metrics-grid strong { font-size: 1.8rem; }
 .analytics-section { margin-top: 2rem; }
+
+/* Authenticated access-token inspection for academic demonstrations. */
+.jwt-inspector { margin: .6rem 1rem 1rem; border: 1px solid #dce8e0; border-radius: 9px; background: white; }
+.jwt-inspector > summary, .jwt-claims > summary { cursor: pointer; padding: .75rem 1rem; font-size: .83rem; font-weight: 700; color: #295f4d; }
+.jwt-content { padding: .6rem 1rem 1.1rem; }
+.jwt-content .profile-grid { padding-left: 0; padding-right: 0; }
+.jwt-content code, .profile-grid code { overflow-wrap: anywhere; word-break: break-word; }
+.jwt-claims { margin: .5rem 0; border: 1px solid #e4ebe6; border-radius: 7px; }
+.jwt-claims pre { padding: .8rem; margin: 0; max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .73rem; background: #fafcfb; }
+.jwt-warning { font-size: .78rem; color: #8b5c19; margin: 1rem 0; }
+.jwt-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.jwt-raw { box-sizing: border-box; width: 100%; margin-top: 1rem; min-height: 115px; padding: .8rem; border: 1px solid #a5b8ae; border-radius: 8px; resize: vertical; overflow-wrap: anywhere; font: .73rem/1.5 monospace; }
+@media (max-width: 620px) { .profile-grid { grid-template-columns: minmax(0,1fr); } }

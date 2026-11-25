@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
 import { config } from './config'
 import { version } from '../package.json'
+import JwtInspector from './JwtInspector'
 
 const currency = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 })
 const symbols = { Medicamentos: '💊', Bienestar: '🍊', 'Cuidado personal': '🧴', Insumos: '🌡️' }
@@ -47,6 +48,7 @@ export default function App({ auth }) {
   const [catalogError, setCatalogError] = useState('')
   const [notice, setNotice] = useState('')
   const [orders, setOrders] = useState([])
+  const [pendingPaymentOrderId, setPendingPaymentOrderId] = useState(null)
   const [ordersError, setOrdersError] = useState('')
   const [recipientEmail, setRecipientEmail] = useState('')
   const [paymentMode, setPaymentMode] = useState('SIMULATED')
@@ -85,7 +87,10 @@ export default function App({ auth }) {
         form.appendChild(token); document.body.appendChild(form); form.submit()
         return
       }
-      setNotice(`Pago ${result.status} — ${result.id}. El stock y la orden se actualizarán mediante RabbitMQ.`)
+      setNotice(result.status === 'APPROVED'
+        ? 'Pago aprobado. Esperando confirmación final del inventario y cierre del carrito…'
+        : `Pago ${result.status} — ${result.id}. Revisa el estado del pedido.`)
+      if (result.status === 'APPROVED') setPendingPaymentOrderId(order.id)
       await refreshOrders()
       await loadRecommendations()
     } catch (e) { setOrdersError(e.message) }
@@ -100,6 +105,40 @@ export default function App({ auth }) {
       setOrdersError('')
     } catch (e) { setOrdersError(e.message) }
   }
+
+  // Poll only after approved checkout; RabbitMQ completes the order asynchronously.
+  useEffect(() => {
+    if (!auth.isAuthenticated || !pendingPaymentOrderId) return
+    let cancelled = false
+    let attempts = 0
+    const timer = setInterval(async () => {
+      if (cancelled) return
+      try {
+        const latest = await api.orders(auth)
+        if (cancelled || !Array.isArray(latest)) return
+        setOrders(latest)
+        const order = latest.find(item => item.id === pendingPaymentOrderId)
+        if (order?.status === 'PAID') {
+          setPendingPaymentOrderId(null)
+          await refreshCart()
+          setNotice('Pago confirmado. El pedido está pagado; el carrito se está actualizando.')
+          // Backend reconciliation may run shortly after the PAID event.
+          setTimeout(() => { if (auth.isAuthenticated) refreshCart().catch(() => {}) }, 3500)
+        } else if (order?.status === 'PAYMENT_FAILED') {
+          setPendingPaymentOrderId(null)
+          setOrdersError('El pago no se pudo completar; el carrito conserva sus productos.')
+        } else if (++attempts >= 20) {
+          setPendingPaymentOrderId(null)
+          setNotice('Pago aprobado; la confirmación final sigue en proceso. Puedes actualizar Mis pedidos.')
+        }
+      } catch {
+        if (++attempts >= 20) setPendingPaymentOrderId(null)
+      }
+    }, 3000)
+    return () => { cancelled = true; clearInterval(timer) }
+    // auth changes identity with MSAL; do not restart the active payment poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.isAuthenticated, pendingPaymentOrderId])
 
   async function submitOrder() {
     if (!selectedQuote || busy) return
@@ -420,8 +459,8 @@ export default function App({ auth }) {
               <div><strong>Pedido {order.id.slice(0, 8).toUpperCase()}</strong>
                 <p className="muted">{new Date(order.createdAt).toLocaleString('es-CL')} · {order.mode === 'CHEAPEST' ? 'Mejor precio' : 'Entrega más rápida'}</p>
                 <p className="muted">Notificación: {order.recipientEmail}</p></div>
-              <div><strong>{currency.format(order.totalAmount)}</strong><p className="muted">{order.status === 'PAID' ? 'Pago aprobado' : order.status === 'PAYMENT_FAILED' ? 'Pago rechazado' : 'Pendiente de pago'}</p>
-                {order.status === 'PENDING_PAYMENT' && <button type="button" className="button-primary" disabled={busy} onClick={() => payOrder(order)}>Pagar pedido</button>}
+              <div><strong>{currency.format(order.totalAmount)}</strong><p className="muted">{order.status === 'PAID' ? 'Pago aprobado' : order.status === 'PAYMENT_FAILED' ? 'Pago rechazado' : pendingPaymentOrderId === order.id ? 'Confirmando pago…' : 'Pendiente de pago'}</p>
+                {order.status === 'PENDING_PAYMENT' && <button type="button" className="button-primary" disabled={busy || pendingPaymentOrderId === order.id} onClick={() => payOrder(order)}>{pendingPaymentOrderId === order.id ? 'Procesando…' : 'Pagar pedido'}</button>}
               </div>
             </article>)}</div>}
           <p className="muted">Las pruebas usan el simulador o el ambiente de integración de Webpay, nunca tarjetas reales en nuestro backend.</p>
@@ -447,6 +486,7 @@ export default function App({ auth }) {
           {profile ? <><p className="account-name">{profile.name || auth.userName || 'Usuario'}</p>
             <p className="muted">Acceso protegido con Microsoft Entra ID en AWS.</p><details className="technical-details"><summary>Ver detalles técnicos</summary>
               <div className="profile-grid"><span>Identificador</span><code>{profile.userId}</code><span>Scopes</span><code>{profile.scopes?.join(', ') || '-'}</code><span>Roles</span><code>{profile.roles?.join(', ') || '-'}</code><span>Entorno</span><code>{config.authMode}</code></div>
+              {auth.mode === 'azure' && <JwtInspector getAccessToken={auth.getAccessToken} />}
             </details></> : <p className="muted">Sin datos de identidad disponibles.</p>}
         </section>
       </main>
