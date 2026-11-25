@@ -188,9 +188,44 @@ resource "aws_apigatewayv2_route" "webpay_return" {
   target = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
   authorization_type = "NONE"
 }
-# HTTP API CORS responds to OPTIONS preflight automatically.
-# Do not add an OPTIONS /api/{proxy+} route forwarding to Spring:
-# a backend with an older allowed-origin list would otherwise reject preflight.
+# Keep OPTIONS unauthenticated; an ALB rule handles preflight with 204,
+# so Spring Security cannot reject requests from newly authorized origins.
+resource "aws_apigatewayv2_route" "preflight" {
+  count              = var.enable_api ? 1 : 0
+  api_id             = aws_apigatewayv2_api.http[0].id
+  route_key          = "OPTIONS /api/{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
+  authorization_type = "NONE"
+}
+
+# Higher priority than all backend /api routes (100+). A fixed response
+# avoids contacting Spring for browser CORS preflight requests.
+# HTTP API adds the configured Access-Control-Allow-* headers to this 204.
+resource "aws_lb_listener_rule" "cors_preflight" {
+  count        = var.enable_api ? 1 : 0
+  listener_arn = aws_lb_listener.http[0].arn
+  priority     = 10
+
+  action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      status_code  = "204"
+    }
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api/*"]
+    }
+  }
+
+  condition {
+    http_request_method {
+      values = ["OPTIONS"]
+    }
+  }
+}
 resource "aws_apigatewayv2_stage" "http" {
   count = var.enable_api ? 1 : 0
   api_id = aws_apigatewayv2_api.http[0].id
