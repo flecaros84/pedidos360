@@ -56,6 +56,12 @@ resource "aws_instance" "backend" {
   depends_on = [aws_route.private_default]
 }
 resource "aws_instance" "frontend" {
+  # The lab bootstraps Docker once; later service updates use SSM deployment.
+  # Reapplying user_data may restart this EC2 and change its public IP.
+  lifecycle {
+    ignore_changes = [user_data]
+  }
+
   ami = data.aws_ami.al2023.id
   instance_type = var.instance_types["frontend"]
   subnet_id = aws_subnet.public[0].id
