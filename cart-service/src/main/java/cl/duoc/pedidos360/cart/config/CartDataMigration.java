@@ -60,5 +60,8 @@ public class CartDataMigration implements ApplicationRunner {
         // Índice único conservado tras los reinicios; evita filas duplicadas nuevas.
         jdbc.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_cart_item_user_product "
                 + "ON cart_item(user_id, product_code)");
+        // Make the paid-order settlement idempotent across retries and restarts.
+        jdbc.execute("CREATE TABLE IF NOT EXISTS cart_paid_orders ("
+                + "order_id UUID PRIMARY KEY, processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
     }
 }
