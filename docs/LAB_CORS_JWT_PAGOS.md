@@ -46,3 +46,18 @@ curl.exe -i -X OPTIONS "$api/api/cart/items" -H "Origin: $front" -H "Access-Cont
 ```
 
 Esperado: HTTP 204, `access-control-allow-origin` igual a `$front`, métodos y encabezados permitidos. Un origen no autorizado no debe recibir `access-control-allow-origin`; el ALB devuelve 204 a OPTIONS independientemente del origen, pero la política CORS de API Gateway controla qué navegador puede proceder. Validar además JWT ausente y JWT legítimo en peticiones reales.
+
+## Corrección de reglas de seguridad ALB (24-11-2026)
+
+Tras el despliegue de preflight, `aws_security_group.alb` volvió a configurar sus reglas de entrada administradas *inline* y eliminó la regla separada de acceso 8080 desde el VPC Link. Resultado: preflight 204 y autenticación 401 correctos, pero el SG del ALB solo exhibía el puerto 80 y el segundo frontend HTTPS podría devolver 503.
+
+Corrección de código: declarar el puerto 8080 desde el SG del VPC Link dentro de `aws_security_group.alb` (regla dinámica cuando `enable_api=true` y `enable_cloudfront=false`) y retirar el `aws_security_group_rule.frontend_listener_from_vpc_link` separado. **No combinar reglas ingress inline y recursos aws_security_group_rule para el mismo Security Group.**
+
+Procedimiento de mantenimiento del estado en el laboratorio, desde la raíz del repositorio y después de sincronizar la rama:
+1. Confirmar mediante AWS CLI que la regla de 8080 ya no existe.
+2. `terraform -chdir=terraform/lab state list` y, si todavía se rastrea `aws_security_group_rule.frontend_listener_from_vpc_link[0]`, ejecutar `terraform -chdir=terraform/lab state rm 'aws_security_group_rule.frontend_listener_from_vpc_link[0]'`. **state rm solo desasocia Terraform; no elimina recursos AWS**. Este caso es seguro solamente porque ya se verificó que no existe la regla en AWS.
+3. `terraform -chdir=terraform/lab plan "-target=aws_security_group.alb" "-out=alb-8080.tfplan"` y verificar que el único cambio sea `update` en `aws_security_group.alb`, sin eliminaciones ni EC2.
+4. `terraform -chdir=terraform/lab apply alb-8080.tfplan`.
+5. Confirmar SG ingress 80 desde VPC y 8080 desde SG VPC Link; verificar `GET https://rqe2am6670.execute-api.us-east-1.amazonaws.com/` con 200, preflight CORS 204 y respuesta 401 desde backend sin JWT.
+
+Nunca ejecutar un plan que actualice o reemplace EC2. Evitar imprimir tokens o secretos en logs.
