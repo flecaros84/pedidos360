@@ -1,1 +1,5 @@
 CREATE SCHEMA IF NOT EXISTS orders;
+CREATE TABLE IF NOT EXISTS orders.cart_cleared (
+    order_id UUID PRIMARY KEY,
+    cleared_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

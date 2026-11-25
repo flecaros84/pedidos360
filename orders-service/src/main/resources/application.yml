@@ -34,6 +34,9 @@ management:
 app:
   cart:
     base-url: ${CART_INTERNAL_URL:http://localhost:8082}
+    cleanup-ms: 5000
+  internal:
+    service-token: ${INTERNAL_SERVICE_TOKEN:}
   outbox:
     poll-ms: 5000
   security:

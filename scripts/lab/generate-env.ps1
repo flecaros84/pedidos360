@@ -58,6 +58,7 @@ foreach ($svc in $services) {
     $lines.Add("RABBITMQ_USERNAME=$rabbitUser")
     $lines.Add("RABBITMQ_PASSWORD=$rabbitPassword")
   }
+  if ($svc -in @('cart','orders')) { $lines.Add("INTERNAL_SERVICE_TOKEN=$internalToken") }
   if ($svc -in @('products','cart','analytics')) { $lines.Add("KAFKA_BOOTSTRAP_SERVERS=${kafkaPrivate}:9092") }
   if ($svc -in @('cart')) { $lines.Add("PRODUCTS_INTERNAL_URL=http://$($ip.products):8083") }
   if ($svc -eq 'products') { $lines.Add('CATALOG_SEED_DEMO=true'); $lines.Add("INTERNAL_SERVICE_TOKEN=$internalToken") }

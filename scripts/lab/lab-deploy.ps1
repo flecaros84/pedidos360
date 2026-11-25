@@ -1,7 +1,8 @@
 # Deploy all containers across five shared backend hosts, plus Kafka, RabbitMQ and frontend.
 param(
     [string]$Prefix = 'pedidos360',
-    [string]$ImageTag = 'integration'
+    [string]$ImageTag = 'integration',
+    [string[]]$Services = @()
 )
 . "$PSScriptRoot/lab-common.ps1"
 Assert-AwsSession
@@ -37,6 +38,12 @@ $ports = @{
 }
 $services = @('rabbitmq','kafka','products','cart','auth','orders',
               'notifications','payment','audit','analytics','dispatch','frontend')
+if ($Services.Count -gt 0) {
+    foreach ($name in $Services) {
+        if ($name -notin $services) { throw "Unknown service: $name" }
+    }
+    $services = @($services | Where-Object { $_ -in $Services })
+}
 $instances = @(Get-LabInstances | Where-Object { $_.State -eq 'running' })
 
 foreach ($service in $services) {
