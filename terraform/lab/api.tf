@@ -187,9 +187,9 @@ resource "aws_apigatewayv2_route" "api" {
 # Transbank returns to this endpoint without a browser JWT; the application validates
 # its opaque token with Transbank server-to-server before accepting the payment.
 resource "aws_apigatewayv2_route" "webpay_return" {
-  count = var.enable_api ? 1 : 0
+  for_each = var.enable_api ? toset(["GET", "POST"]) : toset([])
   api_id = aws_apigatewayv2_api.http[0].id
-  route_key = "ANY /api/payments/webpay/return"
+  route_key = "${each.value} /api/payments/webpay/return"
   target = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
   authorization_type = "NONE"
 }
