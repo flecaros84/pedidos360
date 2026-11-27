@@ -55,13 +55,13 @@ foreach ($svc in $services) {
     $lines.Add('DATABASE_USERNAME=pedidos360')
     $lines.Add("DATABASE_PASSWORD=$dbPassword")
   }
-  if ($svc -in @('products','orders','notifications','payment','audit','dispatch')) {
+  if ($svc -in @('products','orders','notifications','payment','dispatch')) {
     $lines.Add("RABBITMQ_HOST=$rabbitPrivate")
     $lines.Add("RABBITMQ_USERNAME=$rabbitUser")
     $lines.Add("RABBITMQ_PASSWORD=$rabbitPassword")
   }
   if ($svc -in @('cart','orders')) { $lines.Add("INTERNAL_SERVICE_TOKEN=$internalToken") }
-  if ($svc -in @('products','cart','analytics')) { $lines.Add("KAFKA_BOOTSTRAP_SERVERS=${kafkaPrivate}:9092") }
+  if ($svc -in @('products','cart','orders','payment','audit','analytics')) { $lines.Add("KAFKA_BOOTSTRAP_SERVERS=${kafkaPrivate}:9092") }
   if ($svc -in @('cart')) { $lines.Add("PRODUCTS_INTERNAL_URL=http://$($ip.products):8083") }
   if ($svc -eq 'products') { $lines.Add('CATALOG_SEED_DEMO=true'); $lines.Add("INTERNAL_SERVICE_TOKEN=$internalToken") }
   if ($svc -eq 'orders') { $lines.Add("CART_INTERNAL_URL=http://$($ip.cart):8082") }

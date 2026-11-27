@@ -3,6 +3,8 @@ name: Pedidos360 v1 - Integración completa
 on:
   push:
     branches: [feature/integracion-final]
+  pull_request:
+    branches: [feature/integracion-final]
   workflow_dispatch:
 
 permissions:
@@ -57,6 +59,13 @@ jobs:
           terraform init -backend=false
           terraform validate
 
+  gateway-route-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar rutas explícitas backend
+        run: python3 scripts/validate/check_backend_gateway.py
+
   docker-validation:
     runs-on: ubuntu-latest
     steps:
@@ -65,7 +74,8 @@ jobs:
         run: docker compose -f docker-compose.full.yml config --quiet
 
   images:
-    needs: [backend-tests, frontend-tests, terraform-validation, docker-validation]
+    if: github.event_name != 'pull_request'
+    needs: [backend-tests, frontend-tests, terraform-validation, gateway-route-validation, docker-validation]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

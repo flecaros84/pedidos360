@@ -22,19 +22,19 @@ import javax.crypto.spec.SecretKeySpec;
 @Service
 public class PaymentService {
  private final JdbcTemplate db; private final ObjectMapper json; private final TransactionTemplate tx;
- private final RestClient client; private final WebpayClient webpay;
+ private final RestClient client; private final WebpayClient webpay; private final FraudGateway fraud;
  private final String ordersUrl, inventoryUrl, internalToken, hmacKey;
  private final boolean simulationEnabled;
  private final String frontendUrl;
 
- public PaymentService(JdbcTemplate db,ObjectMapper json,TransactionTemplate tx,WebpayClient webpay,
+ public PaymentService(JdbcTemplate db,ObjectMapper json,TransactionTemplate tx,WebpayClient webpay,FraudGateway fraud,
    @Value("${payment.orders-url}") String ordersUrl,
    @Value("${payment.inventory-url}") String inventoryUrl,
    @Value("${payment.internal-token}") String internalToken,
    @Value("${payment.antifraud-hmac-key}") String hmacKey,
    @Value("${payment.simulation-enabled:false}") boolean simulationEnabled,
    @Value("${payment.frontend-url:http://localhost}") String frontendUrl) {
-    this.db=db;this.json=json;this.tx=tx;this.webpay=webpay;
+    this.db=db;this.json=json;this.tx=tx;this.webpay=webpay;this.fraud=fraud;
     this.ordersUrl=ordersUrl;this.inventoryUrl=inventoryUrl;this.internalToken=internalToken;
     this.hmacKey=hmacKey;this.simulationEnabled=simulationEnabled;this.frontendUrl=frontendUrl;
     this.client=RestClient.builder().build();
@@ -93,28 +93,26 @@ public class PaymentService {
        var same=db.query("SELECT id FROM payments.payment_attempts WHERE order_id=? AND request_key=?",
                 (rs,i)->(UUID)rs.getObject(1),payload.orderId(),key);
        if(!same.isEmpty()) return same.get(0);
-       if(fp!=null){
-           // Serialize check and insert, even when multiple requests arrive simultaneously.
-           db.queryForList("SELECT pg_advisory_xact_lock(hashtext(?))",fp);
-           int recent=db.queryForObject("SELECT count(*) FROM payments.payment_attempts WHERE card_fingerprint=? " +
-                "AND created_at >= NOW() - INTERVAL '10 seconds'",Integer.class,fp);
-           if(recent>=3){
-              UUID alert=UUID.randomUUID();
-              db.update("INSERT INTO payments.fraud_alerts(id,card_fingerprint,reason) VALUES (?,?,'MORE_THAN_3_IN_10_SECONDS')",alert,fp);
-              UUID blockedId=UUID.randomUUID();
-              db.update("INSERT INTO payments.payment_attempts(id,order_id,request_key,card_fingerprint,method,status,amount) " +
-                   "VALUES (?,?,?,?,?,'BLOCKED',?)",blockedId,payload.orderId(),key,fp,payload.method(),amount);
-              return blockedId;
-           }
-       }
        UUID newid=UUID.randomUUID();
+       // Simulated cards must be approved by the Kafka fraud decision consumer.
+       String initialStatus=fp==null?"CREATED":"FRAUD_PENDING";
        db.update("INSERT INTO payments.payment_attempts(id,order_id,request_key,card_fingerprint,method,status,amount) " +
-                  "VALUES (?,?,?,?,?,'CREATED',?)",newid,payload.orderId(),key,fp,payload.method(),amount);
+                 "VALUES (?,?,?,?,?,?,?)",newid,payload.orderId(),key,fp,payload.method(),initialStatus,amount);
        return newid;
     });
     Map<String,Object> existing=asResponse(id);
+    if("FRAUD_PENDING".equals(existing.get("status"))) {
+        // A reused Idempotency-Key cannot be evaluated with a different card reference.
+        String original=db.queryForObject("SELECT card_fingerprint FROM payments.payment_attempts WHERE id=?",
+                                          String.class,id);
+        if(!Objects.equals(original,fp))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"Idempotency-Key reutilizada con otra tarjeta");
+        // Fail closed until Kafka evaluates this fingerprint and applies the decision.
+        fraud.evaluate(id,fp);
+        existing=asResponse(id);
+    }
     if("BLOCKED".equals(existing.get("status")))
-        throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,"Bloqueo antifraude: más de 3 intentos en 10 segundos");
+        throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,"Tarjeta bloqueada por antifraude");
     if(!"CREATED".equals(existing.get("status"))) return existing;
     // Reserve inventory before initiating external payments.
     try {

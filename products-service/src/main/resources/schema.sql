@@ -21,5 +21,7 @@ CREATE TABLE IF NOT EXISTS catalogo.inventory_outbox (
  routing_key VARCHAR(100) NOT NULL,
  payload TEXT NOT NULL,
  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
- published_at TIMESTAMP WITH TIME ZONE
+ published_at TIMESTAMP WITH TIME ZONE,
+ audit_published_at TIMESTAMP WITH TIME ZONE
 );
+ALTER TABLE catalogo.inventory_outbox ADD COLUMN IF NOT EXISTS audit_published_at TIMESTAMP WITH TIME ZONE;

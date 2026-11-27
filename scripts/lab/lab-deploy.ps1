@@ -73,7 +73,12 @@ foreach ($service in $deployServices) {
                 'set -e',
                 'install -d -m 755 /opt/pedidos360/kafka-data',
                 'chown -R 1000:1000 /opt/pedidos360/kafka-data'
-            ) + $commands
+            ) + $commands + @(
+                'docker rm -f pedidos360-kafka-ui >/dev/null 2>&1 || true',
+                'docker pull ghcr.io/kafbat/kafka-ui:v1.5.1',
+                'docker run -d --name pedidos360-kafka-ui --restart unless-stopped --network host --memory 850m -e KAFKA_CLUSTERS_0_NAME=pedidos360 -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=127.0.0.1:9092 -e DYNAMIC_CONFIG_ENABLED=false ghcr.io/kafbat/kafka-ui:v1.5.1',
+                "docker inspect -f '{{.State.Running}}' pedidos360-kafka-ui | grep -qx true"
+            )
         }
     } else {
         # Secondary service runs as its own named Docker container on the shared host.

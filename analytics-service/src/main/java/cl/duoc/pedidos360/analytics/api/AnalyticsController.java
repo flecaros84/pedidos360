@@ -18,18 +18,8 @@ public class AnalyticsController {
          @RequestHeader(value="X-Demo-User",required=false) String demo){
     String user=auth!=null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())?auth.getName():demo;
     if(user==null || user.isBlank()) return List.of();
-    // Similarity: recommend popular products in the category viewed most by the user.
-    var categories=db.query("SELECT category FROM analytics.product_views WHERE user_id=? AND category IS NOT NULL " +
-          "GROUP BY category ORDER BY SUM(views) DESC LIMIT 1",(r,i)->r.getString(1),user);
-    if(categories.isEmpty())return List.of();
-    String preferredCategory=categories.get(0);
-    // Prefer unseen products, but fall back to category popularity if all were viewed.
-    var unseen=db.queryForList("SELECT product_sku AS sku,SUM(views) AS score FROM analytics.product_views " +
-         "WHERE category=? AND product_sku NOT IN " +
-         "(SELECT product_sku FROM analytics.product_views WHERE user_id=?) " +
-         "GROUP BY product_sku ORDER BY score DESC, product_sku LIMIT 6",preferredCategory,user);
-    if(!unseen.isEmpty())return unseen;
-    return db.queryForList("SELECT product_sku AS sku,SUM(views) AS score FROM analytics.product_views " +
-         "WHERE category=? GROUP BY product_sku ORDER BY score DESC, product_sku LIMIT 6",preferredCategory);
+    // Materialized by the recommendations Kafka consumer, never computed by this HTTP request.
+    return db.queryForList("SELECT product_sku AS sku,score FROM analytics.user_recommendations " +
+             "WHERE user_id=? ORDER BY rank LIMIT 6", user);
  }
 }

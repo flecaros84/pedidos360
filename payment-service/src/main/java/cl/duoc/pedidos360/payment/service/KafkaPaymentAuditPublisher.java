@@ -1,0 +1,36 @@
+package cl.duoc.pedidos360.payment.service;
+
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+@Component
+public class KafkaPaymentAuditPublisher {
+    private final JdbcTemplate db;
+    private final KafkaTemplate<String, String> kafka;
+
+    public KafkaPaymentAuditPublisher(JdbcTemplate db, KafkaTemplate<String, String> kafka) {
+        this.db = db;
+        this.kafka = kafka;
+    }
+
+    @Scheduled(fixedDelay = 5000, initialDelay = 20000)
+    public void publish() {
+        try {
+            var batch = db.queryForList("SELECT id,routing_key,body FROM payments.payment_events " +
+                    "WHERE audit_published_at IS NULL ORDER BY created_at LIMIT 25");
+            for (var row : batch) {
+                kafka.send("audit.events", (String) row.get("routing_key"),
+                        (String) row.get("body")).get(5, TimeUnit.SECONDS);
+                db.update("UPDATE payments.payment_events SET audit_published_at=NOW() WHERE id=?",
+                        (UUID) row.get("id"));
+            }
+        } catch (Exception ex) {
+            org.slf4j.LoggerFactory.getLogger(getClass())
+                    .warn("Kafka payment audit delivery will retry: {}", ex.toString());
+        }
+    }
+}
