@@ -71,6 +71,10 @@ resource "aws_security_group" "nat" {
   }
 }
 resource "aws_instance" "nat" {
+  # Keep the running NAT instance and its network interface stable after AMI updates.
+  lifecycle {
+    ignore_changes = [ami, user_data]
+  }
   ami = data.aws_ami.al2023.id
   instance_type = var.instance_types["nat"]
   subnet_id = aws_subnet.public[0].id

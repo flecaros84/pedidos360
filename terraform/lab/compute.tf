@@ -34,7 +34,12 @@ locals {
     "ghcr.io/${var.image_owner}/pedidos360-${name}:${var.image_tag}"
   }
 }
+# Existing lab EC2 machines must not be recreated when a newer AL2023 AMI appears.
+# Docker/SSM deploys update services; cloud-init runs only during initial provisioning.
 resource "aws_instance" "backend" {
+  lifecycle {
+    ignore_changes = [ami, user_data]
+  }
   for_each = local.backend_host_ports
   ami = data.aws_ami.al2023.id
   instance_type = var.instance_types[each.key]
@@ -59,7 +64,7 @@ resource "aws_instance" "frontend" {
   # The lab bootstraps Docker once; later service updates use SSM deployment.
   # Reapplying user_data may restart this EC2 and change its public IP.
   lifecycle {
-    ignore_changes = [user_data]
+    ignore_changes = [ami, user_data]
   }
 
   ami = data.aws_ami.al2023.id
@@ -81,6 +86,9 @@ resource "aws_instance" "frontend" {
   tags = { Name = "${var.name}-frontend", LabControl = "true" }
 }
 resource "aws_instance" "rabbit" {
+  lifecycle {
+    ignore_changes = [ami, user_data]
+  }
   ami = data.aws_ami.al2023.id
   instance_type = var.instance_types["rabbitmq"]
   subnet_id = aws_subnet.public[0].id
@@ -100,6 +108,9 @@ resource "aws_instance" "rabbit" {
   tags = { Name = "${var.name}-rabbitmq", LabControl = "true" }
 }
 resource "aws_instance" "kafka" {
+  lifecycle {
+    ignore_changes = [ami, user_data]
+  }
   ami = data.aws_ami.al2023.id
   instance_type = var.instance_types["kafka"]
   subnet_id = aws_subnet.private[0].id
