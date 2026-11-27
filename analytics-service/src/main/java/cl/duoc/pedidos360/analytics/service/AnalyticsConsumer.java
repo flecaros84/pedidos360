@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
@@ -18,6 +19,7 @@ public class AnalyticsConsumer {
                           @Value("${analytics.dynamodb-table}") String table){
     this.db=db;this.json=json;this.dynamo=dynamo;this.table=table;
  }
+ @Transactional
  @KafkaListener(topics="shopping.interactions",groupId="analytics")
  public void consume(String raw) throws Exception {
    JsonNode event=json.readTree(raw);
@@ -49,5 +51,8 @@ public class AnalyticsConsumer {
             "ON CONFLICT (user_id,product_sku) DO UPDATE SET views=analytics.product_views.views+1,last_view=NOW()",
             user,sku,event.path("category").asText(""));
    }
- }
+    if (!user.isBlank() && !user.equals("anonymous")) {
+      db.update("INSERT INTO analytics.recommendation_requests(event_id,user_id) VALUES (?,?) ON CONFLICT DO NOTHING",UUID.fromString(id),user);
+    }
+  }
 }

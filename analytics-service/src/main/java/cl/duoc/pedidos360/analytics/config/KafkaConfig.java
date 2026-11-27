@@ -6,4 +6,5 @@ import org.springframework.kafka.config.TopicBuilder;
 @Configuration
 public class KafkaConfig {
  @Bean NewTopic shoppingInteractions(){return TopicBuilder.name("shopping.interactions").partitions(1).replicas(1).build();}
+ @Bean NewTopic recommendationUpdates(){return TopicBuilder.name("recommendations.updated").partitions(1).replicas(1).build();}
 }
