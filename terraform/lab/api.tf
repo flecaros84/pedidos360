@@ -76,7 +76,7 @@ resource "aws_lb_listener_rule" "routes" {
       values = (
         each.key == "payment" ? ["/api/payments", "/api/payments/*"] :
         each.key == "analytics" ? ["/api/analytics", "/api/analytics/*"] :
-        each.key == "products" ? ["/api/products", "/api/products/*", "/api/branches", "/api/branches/*", "/api/delivery-zones"] :
+        each.key == "products" ? ["/api/products", "/api/products/*", "/api/branches", "/api/branches/*", "/api/delivery-zones", "/api/delivery-zones/*"] :
         ["/api/${each.key}", "/api/${each.key}/*"]
       )
     }
