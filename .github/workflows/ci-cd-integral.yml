@@ -59,6 +59,13 @@ jobs:
           terraform init -backend=false
           terraform validate
 
+  gateway-route-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar rutas explícitas backend
+        run: python3 scripts/validate/check_backend_gateway.py
+
   docker-validation:
     runs-on: ubuntu-latest
     steps:
@@ -68,7 +75,7 @@ jobs:
 
   images:
     if: github.event_name != 'pull_request'
-    needs: [backend-tests, frontend-tests, terraform-validation, docker-validation]
+    needs: [backend-tests, frontend-tests, terraform-validation, gateway-route-validation, docker-validation]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

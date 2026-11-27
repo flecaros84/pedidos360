@@ -102,6 +102,11 @@ public class PaymentService {
     });
     Map<String,Object> existing=asResponse(id);
     if("FRAUD_PENDING".equals(existing.get("status"))) {
+        // A reused Idempotency-Key cannot be evaluated with a different card reference.
+        String original=db.queryForObject("SELECT card_fingerprint FROM payments.payment_attempts WHERE id=?",
+                                          String.class,id);
+        if(!Objects.equals(original,fp))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"Idempotency-Key reutilizada con otra tarjeta");
         // Fail closed until Kafka evaluates this fingerprint and applies the decision.
         fraud.evaluate(id,fp);
         existing=asResponse(id);
