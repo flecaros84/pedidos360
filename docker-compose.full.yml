@@ -211,6 +211,7 @@ services:
       RABBITMQ_USERNAME: farmacia
       RABBITMQ_PASSWORD: local-only-rabbit-password
       CART_INTERNAL_URL: http://cart:8082
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       DATABASE_DDL_AUTO: update
     depends_on:
       postgres:
@@ -271,6 +272,7 @@ services:
       PRODUCTS_INTERNAL_URL: http://products:8083
       INTERNAL_SERVICE_TOKEN: local-internal-strong-token
       PAYMENT_SIMULATION_ENABLED: 'true'
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       ANTIFRAUD_HMAC_KEY: local-only-very-strong-antifraud-secret
       FRONTEND_PUBLIC_URL: http://localhost
     depends_on:
@@ -297,15 +299,12 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/pedidos360
       DATABASE_USERNAME: pedidos360
       DATABASE_PASSWORD: local-only-database-password
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: '5672'
-      RABBITMQ_USERNAME: farmacia
-      RABBITMQ_PASSWORD: local-only-rabbit-password
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       postgres:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      kafka:
+        condition: service_started
     mem_limit: 1600m
     ports:
     - 127.0.0.1:8087:8087

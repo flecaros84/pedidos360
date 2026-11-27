@@ -9,6 +9,7 @@ public class OutboxEvent {
     @Column(name="payload_json",nullable=false,columnDefinition="text") private String payloadJson;
     @Column(name="created_at",nullable=false) private Instant createdAt;
     @Column(name="published_at") private Instant publishedAt;
+    @Column(name="audit_published_at") private Instant auditPublishedAt;
     protected OutboxEvent() {}
     public OutboxEvent(String routingKey,String payloadJson) {
         this.id=UUID.randomUUID(); this.routingKey=routingKey;
