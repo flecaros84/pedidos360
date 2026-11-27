@@ -30,7 +30,7 @@ function Invoke-InstanceAction([string]$Action,[string[]]$Names) {
     } else {
         @($instances | Where-Object { $_.State -eq 'running' })
     }
-    if ($toChange.Count -eq 0) { return }
+    if ($null -eq $toChange -or @($toChange).Count -eq 0) { return }
     $ids = @($toChange | ForEach-Object { $_.Id })
     if ($Action -eq 'start') {
         aws ec2 start-instances --instance-ids $ids --output json > $null

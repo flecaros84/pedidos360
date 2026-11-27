@@ -1,0 +1,4 @@
+- Kakfa UI repositorio grafico de kafka
+- Api Gateway backend no debe tener proxy
+- Recomendaciones y Deteccion de Fraude deben ir con topicos de kafka. La detección de fraude debe bloquear la tarjeta detectada como fraudulenta.
+- Cambiar audit a kafka

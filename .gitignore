@@ -42,3 +42,5 @@ master.env
 # Terraform saved plans may embed secrets
 **/*.tfplan
 **/tfplan
+
+/docs/apuntes
