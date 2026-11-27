@@ -50,6 +50,19 @@ services:
       KAFKA_LOG_DIRS: /var/lib/kafka/data
     volumes:
     - kafkadata:/var/lib/kafka/data
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:v1.5.1
+    restart: unless-stopped
+    environment:
+      KAFKA_CLUSTERS_0_NAME: pedidos360
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: 'false'
+    ports:
+    - 127.0.0.1:8080:8080
+    depends_on:
+      kafka:
+        condition: service_started
+    mem_limit: 850m
   mailpit:
     image: axllent/mailpit:v1.21
     ports:

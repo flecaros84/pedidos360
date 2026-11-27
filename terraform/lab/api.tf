@@ -63,19 +63,6 @@ resource "aws_lb_listener" "http" {
     }
   }
 }
-# Frontend SPA fallback: all API rules (including the unknown API 404) take priority.
-resource "aws_lb_listener_rule" "frontend" {
-  count        = var.enable_api ? 1 : 0
-  listener_arn = aws_lb_listener.http[0].arn
-  priority     = 1000
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.frontend[0].arn
-  }
-  condition {
-    path_pattern { values = ["/*"] }
-  }
-}
 resource "aws_lb_listener_rule" "routes" {
   for_each = var.enable_api ? local.backend_ports : {}
   listener_arn = aws_lb_listener.http[0].arn
@@ -155,25 +142,43 @@ resource "aws_apigatewayv2_integration" "backend" {
   connection_id = aws_apigatewayv2_vpc_link.backend[0].id
   payload_format_version = "1.0"
 }
-# React assets and SPA navigation have no JWT requirement; backend /api routes retain it.
-resource "aws_apigatewayv2_route" "frontend_root" {
-  count = var.enable_api ? 1 : 0
-  api_id = aws_apigatewayv2_api.http[0].id
-  route_key = "GET /"
-  target = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
-  authorization_type = "NONE"
-}
-resource "aws_apigatewayv2_route" "frontend_assets" {
-  count = var.enable_api ? 1 : 0
-  api_id = aws_apigatewayv2_api.http[0].id
-  route_key = "ANY /{proxy+}"
-  target = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
-  authorization_type = "NONE"
+# Backend routes are explicitly defined by HTTP method and resource.
+# The separate frontend API remains a SPA catch-all in frontend_only_assets.
+locals {
+  backend_route_keys = [
+    "GET /api/auth/me",
+    "GET /api/cart",
+    "GET /api/cart/quote",
+    "POST /api/cart/items",
+    "DELETE /api/cart",
+    "DELETE /api/cart/items/{id}",
+    "GET /api/products",
+    "GET /api/products/offers",
+    "GET /api/products/categories",
+    "GET /api/products/{id}",
+    "GET /api/products/{id}/availability",
+    "GET /api/products/sku/{sku}/availability",
+    "GET /api/branches",
+    "GET /api/delivery-zones",
+    "GET /api/delivery-zones/{zoneCode}/rates",
+    "POST /api/orders",
+    "GET /api/orders",
+    "GET /api/orders/{id}",
+    "POST /api/notifications/test",
+    "POST /api/payments",
+    "GET /api/payments/{id}",
+    "GET /api/audit/recent",
+    "GET /api/analytics/metrics",
+    "GET /api/analytics/recommendations",
+    "POST /api/analytics/ws-ticket",
+    "GET /api/dispatch",
+    "PATCH /api/dispatch/{id}/status"
+  ]
 }
 resource "aws_apigatewayv2_route" "api" {
-  count = var.enable_api ? 1 : 0
+  for_each = var.enable_api ? toset(local.backend_route_keys) : toset([])
   api_id = aws_apigatewayv2_api.http[0].id
-  route_key = "ANY /api/{proxy+}"
+  route_key = each.value
   target = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
   authorization_type = "JWT"
   authorizer_id = aws_apigatewayv2_authorizer.jwt[0].id
@@ -188,44 +193,8 @@ resource "aws_apigatewayv2_route" "webpay_return" {
   target = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
   authorization_type = "NONE"
 }
-# Keep OPTIONS unauthenticated; an ALB rule handles preflight with 204,
-# so Spring Security cannot reject requests from newly authorized origins.
-resource "aws_apigatewayv2_route" "preflight" {
-  count              = var.enable_api ? 1 : 0
-  api_id             = aws_apigatewayv2_api.http[0].id
-  route_key          = "OPTIONS /api/{proxy+}"
-  target             = "integrations/${aws_apigatewayv2_integration.backend[0].id}"
-  authorization_type = "NONE"
-}
-
-# Higher priority than all backend /api routes (100+). A fixed response
-# avoids contacting Spring for browser CORS preflight requests.
-# HTTP API adds the configured Access-Control-Allow-* headers to this 204.
-resource "aws_lb_listener_rule" "cors_preflight" {
-  count        = var.enable_api ? 1 : 0
-  listener_arn = aws_lb_listener.http[0].arn
-  priority     = 10
-
-  action {
-    type = "fixed-response"
-    fixed_response {
-      content_type = "text/plain"
-      status_code  = "204"
-    }
-  }
-
-  condition {
-    path_pattern {
-      values = ["/api/*"]
-    }
-  }
-
-  condition {
-    http_request_method {
-      values = ["OPTIONS"]
-    }
-  }
-}
+# HTTP API's native CORS configuration handles OPTIONS preflight.
+# No backend greedy proxy route is defined.
 resource "aws_apigatewayv2_stage" "http" {
   count = var.enable_api ? 1 : 0
   api_id = aws_apigatewayv2_api.http[0].id
