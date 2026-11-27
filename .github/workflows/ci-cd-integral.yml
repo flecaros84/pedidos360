@@ -3,6 +3,8 @@ name: Pedidos360 v1 - Integración completa
 on:
   push:
     branches: [feature/integracion-final]
+  pull_request:
+    branches: [feature/integracion-final]
   workflow_dispatch:
 
 permissions:
@@ -65,6 +67,7 @@ jobs:
         run: docker compose -f docker-compose.full.yml config --quiet
 
   images:
+    if: github.event_name != 'pull_request'
     needs: [backend-tests, frontend-tests, terraform-validation, docker-validation]
     runs-on: ubuntu-latest
     strategy:
