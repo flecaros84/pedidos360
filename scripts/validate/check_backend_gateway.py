@@ -5,7 +5,7 @@ import re
 root = Path(__file__).resolve().parents[2]
 text = (root / "terraform/lab/api.tf").read_text(encoding="utf-8")
 assert 'route_key = "ANY /api/{proxy+}"' not in text, "Backend greedy proxy route remains"
-assert 'route_key = "ANY /{proxy+}"' in text, "Frontend proxy must remain"
+assert re.search(r'route_key\\s*=\\s*"ANY /\\{proxy\\+\\}"', text), "Frontend proxy must remain"
 match = re.search(r'backend_route_keys\s*=\s*\[([^]]+)\]', text)
 assert match, "Explicit backend route allowlist missing"
 routes = re.findall(r'"(GET|POST|PATCH|DELETE|PUT) (/api/[^"]+)"', match.group(1))
