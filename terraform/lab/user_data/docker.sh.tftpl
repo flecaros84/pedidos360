@@ -47,18 +47,6 @@ fi
 # EXTRA is deliberately word-split into fixed, trusted port/volume flags.
 /usr/bin/docker run -d --name pedidos360-${service_name} --restart unless-stopped --env-file /opt/pedidos360/service.env \
   -p ${service_port}:${service_port} $EXTRA "$IMAGE"
-# Kafbat UI shares the Kafka EC2; the port 8080 is not exposed in the security group.
-# Session Manager can forward localhost:8080 for private management access.
-if [ "${service_name}" = kafka ]; then
-  /usr/bin/docker rm -f pedidos360-kafka-ui 2>/dev/null || true
-  /usr/bin/docker pull ghcr.io/kafbat/kafka-ui:v1.5.1
-  /usr/bin/docker run -d --name pedidos360-kafka-ui --restart unless-stopped \
-    --network host --memory 850m \
-    -e KAFKA_CLUSTERS_0_NAME=pedidos360 \
-    -e KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=127.0.0.1:9092 \
-    -e DYNAMIC_CONFIG_ENABLED=false \
-    ghcr.io/kafbat/kafka-ui:v1.5.1
-fi
 START
 chmod 700 /opt/pedidos360/start.sh
 cat >/opt/pedidos360/configure.sh <<'CONFIG'
